@@ -1,0 +1,45 @@
+# --- Per-user files (never published) ---
+# Root readme is local-only; canonical overview is docs/README.md
+/README.md
+AGENT_SESSION_CONTEXT.md
+id.md
+PUBLISHED_REPOS.md
+**/.env.local
+.env
+**/.env
+# Keep example env files in repo
+!.env.example
+!dashboard/.env.example
+dashboard/public/avatar.*
+dashboard/public/me.*
+dashboard/public/dippie.*
+
+# --- Secrets & credentials (never commit) ---
+*.pem
+*.p12
+*.key
+id_ed25519
+id_ed25519.pub
+# If someone copies ~/.cloudflared into the tree by mistake
+.cloudflared/
+
+# --- Node / Next.js build artifacts ---
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+**/.turbo/
+*.tsbuildinfo
+coverage/
+
+# --- macOS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Logs & temp ---
+*.log
+*.pid
+*.tmp

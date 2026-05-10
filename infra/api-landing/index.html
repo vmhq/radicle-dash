@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>radicle-httpd · local API</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #08090b;
+        --surface: rgba(255, 255, 255, 0.04);
+        --border: rgba(255, 255, 255, 0.10);
+        --fg: #f5f5f7;
+        --muted: #a1a1aa;
+        --accent: #b4f481;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fafafa;
+          --surface: rgba(0, 0, 0, 0.03);
+          --border: rgba(0, 0, 0, 0.10);
+          --fg: #18181b;
+          --muted: #52525b;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 64px 24px 96px;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 28px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        margin: 32px 0 12px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 20px;
+      }
+      .badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 9999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 3px rgba(180, 244, 129, 0.18);
+      }
+      p { color: var(--muted); margin: 8px 0; }
+      a { color: inherit; }
+      ul.endpoints {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 8px;
+      }
+      ul.endpoints li {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      ul.endpoints a {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        color: var(--fg);
+        text-decoration: none;
+        word-break: break-all;
+      }
+      ul.endpoints a:hover { text-decoration: underline; }
+      ul.endpoints span.desc {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      pre {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--fg);
+      }
+      footer {
+        margin-top: 48px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="badge">Local · proxied by Caddy</span>
+      <h1>radicle-httpd</h1>
+      <p>
+        Read-only JSON API for your local Radicle node. The dashboard at
+        <a href="http://personal.localhost">personal.localhost</a> reads from
+        these endpoints.
+      </p>
+
+      <h2>Endpoints</h2>
+      <ul class="endpoints">
+        <li>
+          <a href="/api/v1">/api/v1</a>
+          <span class="desc">Welcome / discovery (lists all available routes)</span>
+        </li>
+        <li>
+          <a href="/api/v1/node">/api/v1/node</a>
+          <span class="desc">This node’s identity, alias, peers and config</span>
+        </li>
+        <li>
+          <a href="/api/v1/stats">/api/v1/stats</a>
+          <span class="desc">Total repository count and other counters</span>
+        </li>
+        <li>
+          <a href="/api/v1/repos?show=all">/api/v1/repos?show=all</a>
+          <span class="desc">All repositories the node is replicating</span>
+        </li>
+        <li>
+          <a href="/api/v1/repos?show=pinned">/api/v1/repos?show=pinned</a>
+          <span class="desc">Only repositories pinned with <code>rad pin &lt;rid&gt;</code></span>
+        </li>
+        <li>
+          <code>/api/v1/repos/&lt;rid&gt;</code>
+          <span class="desc">Single repository by RID, e.g. <code>rad:zXxx…</code> (works even if /repos is empty)</span>
+        </li>
+      </ul>
+
+      <h2>Try it from the shell</h2>
+      <pre>curl -s http://api.localhost/api/v1/stats | jq
+curl -s 'http://api.localhost/api/v1/repos?show=all' | jq '.[].payloads."xyz.radicle.project".data.name'</pre>
+
+      <footer>
+        Browsers display raw JSON without much styling. For pretty formatting in
+        Chrome/Brave/Edge install a JSON viewer extension, or pipe through <code>jq</code>.
+      </footer>
+    </main>
+  </body>
+</html>

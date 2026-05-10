@@ -1,0 +1,43 @@
+# radprofile.xyz site blocks (imported by the system Caddyfile).
+#
+# Hostnames here use *.localhost which macOS resolves to 127.0.0.1.
+# Do NOT put a global { ... } block here; the system Caddyfile owns that.
+#
+# To register this with the system Caddy, run from the repo root:
+#
+#   web-add "$PWD/infra/sites/radicle-dashboard.caddy"
+#
+# Caddy needs an absolute path for `root *`, so the api-landing block uses
+# the {$RADICLE_DASHBOARD_DIR} environment variable. Set it once in your
+# shell (e.g. ~/.zshrc):
+#
+#   export RADICLE_DASHBOARD_DIR="$HOME/Documents/radicle"
+#
+# …then `brew services restart caddy`. If you don't want the styled landing
+# page at http://api.localhost, delete the `handle /` block below and the
+# whole api-landing folder — only the `/api/*` proxy is required.
+
+http://personal.localhost {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3100
+}
+
+http://marketing.localhost {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3200
+}
+
+http://api.localhost {
+	encode zstd gzip
+
+	# Browser hits to "/" get a friendly, styled landing page.
+	handle / {
+		root * {$RADICLE_DASHBOARD_DIR}/infra/api-landing
+		file_server
+	}
+
+	# Everything else proxies to radicle-httpd (raw JSON for curl / dashboards).
+	handle {
+		reverse_proxy 127.0.0.1:8090
+	}
+}

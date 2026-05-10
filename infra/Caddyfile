@@ -1,0 +1,20 @@
+# Standalone Caddyfile (for ad-hoc testing only).
+#
+# Most of the time you should NOT use this file. The system Caddy is started
+# by `brew services start caddy` and reads /opt/homebrew/etc/Caddyfile, which
+# imports project snippets from ~/.config/caddy/conf.d/*.caddy.
+#
+# To register this project's sites with the system Caddy, from the repo root:
+#
+#   web-add "$PWD/infra/sites/radicle-dashboard.caddy"
+#
+# To run Caddy ad-hoc with this file (kills the brew service if active):
+#
+#   brew services stop caddy
+#   ./caddy-start.sh
+
+{
+	auto_https off
+}
+
+import sites/*.caddy

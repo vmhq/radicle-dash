@@ -1,0 +1,14 @@
+#!/bin/bash
+# Start Radicle node, then HTTP daemon (same terminal).
+# Requires: brew install radicle; radicle-httpd in ~/.radicle/bin (see dashboard README).
+# Install: cp scripts/radicle-start ~/.radicle/bin/radicle-start && chmod +x ~/.radicle/bin/radicle-start
+# PATH:  export PATH="$HOME/.radicle/bin:$PATH"  (add to ~/.zshrc)
+
+set -e
+
+echo "Starting Radicle node…"
+rad node start
+
+echo ""
+echo "Starting Radicle HTTP daemon on 0.0.0.0:8090…"
+exec ~/.radicle/bin/radicle-httpd --listen 0.0.0.0:8090
