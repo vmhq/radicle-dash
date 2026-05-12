@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { CircleDot, Code2, ExternalLink, Globe2 } from "lucide-react";
 
-const FALLBACK_SOURCE_URL = "https://radicle.xyz";
+/** When `NEXT_PUBLIC_SOURCE_URL` is unset, link here (this project on Radicle Explorer). */
+const DEFAULT_SOURCE_URL =
+  "https://radicle.network/nodes/iris.radicle.network/rad%3Az2v11Gpk44QqZ7zy8W9fva8wXXDBi";
 
 export function SiteFooter() {
   const sourceUrl =
-    process.env.NEXT_PUBLIC_SOURCE_URL?.trim() || FALLBACK_SOURCE_URL;
-  const isPlaceholder = sourceUrl === FALLBACK_SOURCE_URL;
+    process.env.NEXT_PUBLIC_SOURCE_URL?.trim() || DEFAULT_SOURCE_URL;
   return (
     <footer className="mt-24 border-t border-border bg-background-subtle/40">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-end sm:justify-between">
@@ -73,16 +74,8 @@ export function SiteFooter() {
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 hover:text-foreground"
-              aria-label={
-                isPlaceholder
-                  ? "Source link not yet configured — set NEXT_PUBLIC_SOURCE_URL"
-                  : "Source on Radicle"
-              }
-              title={
-                isPlaceholder
-                  ? "TODO: set NEXT_PUBLIC_SOURCE_URL once published on Radicle"
-                  : undefined
-              }
+              aria-label="Source on Radicle"
+              title="View repository on Radicle Explorer"
             >
               <Code2 size={11} />
               Source
