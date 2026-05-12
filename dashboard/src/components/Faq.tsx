@@ -2,6 +2,26 @@ import { ChevronDown } from "lucide-react";
 
 const ITEMS: { q: string; a: React.ReactNode }[] = [
   {
+    q: "Explorer opens but shows “NetworkError when attempting to fetch resource”",
+    a: (
+      <>
+        Links point at{" "}
+        <code className="font-mono">radicle.network/nodes/&lt;seed&gt;/&lt;rid&gt;</code>
+        . The Explorer page then asks <strong>that seed</strong> for your repo
+        over the network. If the seed has not replicated your RID yet (or your
+        browser blocks the request), fetches fail with that error. Set{" "}
+        <code className="font-mono">NEXT_PUBLIC_RADICLE_EXPLORER_NODE</code> in
+        env to a hostname that actually hosts your repository, try another public
+        seed (e.g. <code className="font-mono">iris.radicle.network</code> or{" "}
+        <code className="font-mono">seed.radicle.dev</code>), or wait for
+        replication. You can also set{" "}
+        <code className="font-mono">NEXT_PUBLIC_RADICLE_EXPLORER_ORIGIN</code> if
+        you use a different Explorer deployment. Try a normal browser if an
+        embedded preview blocks cross-site loads.
+      </>
+    ),
+  },
+  {
     q: "How is this different from Radicle Explorer?",
     a: (
       <>
@@ -52,13 +72,20 @@ const ITEMS: { q: string; a: React.ReactNode }[] = [
     q: "Why is /node empty even though I’ve seeded repositories?",
     a: (
       <>
-        <code className="font-mono">radicle-httpd</code> defaults{" "}
-        <code className="font-mono">/api/v1/repos</code> to{" "}
-        <code className="font-mono">show=pinned</code>. The dashboard queries{" "}
-        <code className="font-mono">show=all</code> by default, but you can
-        toggle to <code className="font-mono">Pinned</code> via the segmented
-        control. To curate, run{" "}
-        <code className="font-mono">rad pin &lt;rid&gt;</code> on your node.
+        The <strong>All</strong> tab calls{" "}
+        <code className="font-mono">/api/v1/repos?show=all</code> — if that list is
+        empty, your HTTP daemon’s node inventory may not match what you expect
+        (wrong <code className="font-mono">RADICLE_HTTP_BASE</code>, different machine,
+        or the daemon needs a restart). The <strong>Pinned</strong> tab uses{" "}
+        <code className="font-mono">show=pinned</code>, which follows{" "}
+        <code className="font-mono">web.pinned.repositories</code> in{" "}
+        <code className="font-mono">$RAD_HOME/config.json</code> (often{" "}
+        <code className="font-mono">~/.radicle/config.json</code>). There is no{" "}
+        <code className="font-mono">rad pin</code> command — add RIDs to that JSON
+        array, then restart <code className="font-mono">radicle-httpd</code> if needed.
+        For <code className="font-mono">/profile</code>, repos come from{" "}
+        <code className="font-mono">RADICLE_REPO_IDS</code> in{" "}
+        <code className="font-mono">.env.local</code>, not the pinned list.
       </>
     ),
   },

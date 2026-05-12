@@ -1,6 +1,5 @@
 # --- Per-user files (never published) ---
-# Root readme is local-only; canonical overview is docs/README.md
-/README.md
+README.local.md
 AGENT_SESSION_CONTEXT.md
 id.md
 PUBLISHED_REPOS.md

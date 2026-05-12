@@ -1,4 +1,4 @@
-import { getExplorerNode, getRadicleHttpBase } from "./env";
+import { getExplorerNode, getExplorerOrigin, getRadicleHttpBase } from "./env";
 
 export type RadicleDelegate = { id: string; alias: string };
 
@@ -27,7 +27,8 @@ export type RadicleRepoPayload = {
 
 export function explorerRepoUrl(rid: string, node?: string): string {
   const host = node ?? getExplorerNode();
-  return `https://radicle.network/nodes/${encodeURIComponent(host)}/${encodeURIComponent(rid)}`;
+  const origin = getExplorerOrigin();
+  return `${origin}/nodes/${encodeURIComponent(host)}/${encodeURIComponent(rid)}`;
 }
 
 export async function fetchRepo(
@@ -183,9 +184,9 @@ export async function fetchNodeInfo(
 /**
  * Fetch the node's repository inventory.
  *
- * `radicle-httpd` defaults `/api/v1/repos` to `show=pinned`, which returns `[]`
- * unless repositories are explicitly pinned. We pass `show=all` so the whole
- * inventory is returned (matches what `rad ls` shows locally).
+ * `radicle-httpd` defaults `/api/v1/repos` to `show=pinned`, which follows
+ * `web.pinned.repositories` in `$RAD_HOME/config.json` (not a `rad pin` CLI).
+ * We pass `show=all` for the default /node view so the full inventory is returned.
  */
 export async function fetchNodeRepos(
   baseUrl?: string,

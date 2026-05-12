@@ -2,11 +2,11 @@
 
 Next.js (App Router) site that reads your local [`radicle-httpd`][httpd] JSON API and renders:
 
-- `/` — marketing landing page (in `SITE_MODE=marketing`)
-- `/profile` — curated repository list with bio, contribution heatmap, and recent-activity feed
-- `/node` — every repo your node is replicating, with **All / Pinned** filter and search
+- **`/profile`** — curated repository list with bio, contribution heatmap, and recent-activity feed
+- **`/node`** — every repo your node is replicating, with **All / Pinned** filter and search
+- **`/`** — redirects to **`/profile`**
 
-A single codebase serves both the **marketing** site and your **personal** profile via the `SITE_MODE` env var. See [`../infra/README.md`](../infra/README.md) for the shared Caddy reverse-proxy setup that publishes both URLs from the same machine.
+See [`../infra/README.md`](../infra/README.md) for optional Caddy (`*.localhost`) in front of the dev server and `radicle-httpd`.
 
 ## Prerequisites
 
@@ -25,17 +25,15 @@ npm run dev
 
 Open <http://localhost:3100>. Until you set `RADICLE_REPO_IDS`, `/profile` will render a "configure me" empty state; `/node` will list whatever your node already has.
 
-## Production / two-site setup
+## Production
 
-The same build can power both the marketing site and your personal profile, by running two `next start` processes with different `SITE_MODE` and ports:
+After `npm run build`, run the production server (default port **3100**):
 
 ```bash
-npm run build
-npm run start:personal    # SITE_MODE=personal, port 3100
-npm run start:marketing   # SITE_MODE=marketing, port 3200
+npm run start:personal
 ```
 
-Wire `personal.localhost` and `marketing.localhost` to those ports with the shared Caddy in [`../infra/`](../infra/). For going public, see [`../infra/PUBLISH_WITH_CLOUDFLARE.md`](../infra/PUBLISH_WITH_CLOUDFLARE.md).
+For going public (HTTPS, DNS), see [`../infra/README.md`](../infra/README.md) and [`../infra/PUBLISH_WITH_CLOUDFLARE.md`](../infra/PUBLISH_WITH_CLOUDFLARE.md).
 
 ## Environment
 
@@ -51,9 +49,9 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 
 | Variable | Purpose |
 |----------|---------|
-| `SITE_MODE` | `personal` (`/` redirects to `/profile`, marketing chrome hidden) or `marketing` (default) |
+| `SITE_MODE` | Use `personal` so `/` redirects to `/profile` (see `.env.example`). |
 
-### Profile customization (used in personal mode)
+### Profile customization
 
 | Variable | Purpose |
 |----------|---------|
@@ -68,7 +66,8 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_RADICLE_EXPLORER_NODE` | Hostname for Explorer links (default `rosa.radicle.xyz`) |
+| `NEXT_PUBLIC_RADICLE_EXPLORER_ORIGIN` | Explorer base URL (default `https://radicle.network`) |
+| `NEXT_PUBLIC_RADICLE_EXPLORER_NODE` | Seed hostname in Explorer links (default `iris.radicle.network`). Must replicate your RIDs or Explorer shows fetch errors. |
 | `NEXT_PUBLIC_SOURCE_URL` | URL of your published source (Radicle Explorer link); used by the footer "Source" link |
 | `SITE_URL` | Public origin used for `<meta>` tags (`metadataBase`). Set this in production. |
 | `PORT` | Override the dev/start port (default `3100`) |
@@ -80,7 +79,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | `/profile` | `GET /api/v1/repos/<rid>` per RID, in parallel; `GET /api/v1/repos/<rid>/commits?page=N&perPage=5` for the heatmap and recent-activity feed |
 | `/node` | `GET /api/v1/repos?show=all` and `?show=pinned` (so the toggle counts are accurate); `GET /api/v1/node` for the alias and NID |
 
-`radicle-httpd` defaults `/api/v1/repos` to `show=pinned`, which is empty unless you've explicitly pinned anything — that's why we always pass `show=all` for the default view. It also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side.
+`show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side.
 
 Every fetch uses `cache: "no-store"` and the pages are `force-dynamic`, so refreshing always shows the current state of your node.
 
@@ -89,7 +88,7 @@ Every fetch uses `cache: "no-store"` and the pages are `force-dynamic`, so refre
 ```
 src/
   app/
-    page.tsx              marketing landing
+    page.tsx              root route (redirects to /profile)
     profile/page.tsx      curated profile
     node/page.tsx         whole-node browser
     layout.tsx            metadata, fonts
@@ -99,7 +98,7 @@ src/
   components/
     Avatar.tsx            generative monogram (or imageUrl)
     SiteHeader.tsx        sticky nav
-    SiteFooter.tsx        marketing footer
+    SiteFooter.tsx        footer
     Backdrop.tsx          mesh-gradient backdrop
     BrowserFrame.tsx      decorative browser chrome (live preview)
     RepoCard.tsx          one repo, with copy-RID + clone snippet
@@ -107,7 +106,7 @@ src/
     StatTile.tsx          compact stat card
     ShowToggle.tsx        All / Pinned segmented control
     ProfileBio.tsx        bio + social-link chips
-    RecentActivity.tsx    latest commits across pinned repos
+    RecentActivity.tsx    latest commits across profile RIDs
     ActivityHeatmap.tsx   53×7 contribution grid
     Quickstart.tsx        copy-able code blocks
     Faq.tsx               accordion
@@ -128,7 +127,6 @@ src/
 | `npm run build` | Production build |
 | `npm start` | Start the production build |
 | `npm run start:personal` | `SITE_MODE=personal PORT=3100 npm start` |
-| `npm run start:marketing` | `SITE_MODE=marketing PORT=3200 npm start` |
 | `npm run lint` | ESLint |
 
 ## Notes

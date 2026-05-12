@@ -2,7 +2,7 @@
 
 This folder powers two things:
 
-1. **Local reverse proxy** — Caddy serves `personal.localhost`, `marketing.localhost`, and `api.localhost` from this Mac.
+1. **Local reverse proxy** — Caddy serves `personal.localhost` and `api.localhost` from this Mac (see `sites/radicle-dashboard.caddy`; you can trim unused site blocks if your copy includes extra hostnames).
 2. **Publish recipes** — how to put the same setup on the public internet without surprise billing.
 
 The system Caddy is shared across all your Cursor projects (one Caddy instance, many project snippets). Same setup runs on your laptop today and any Mac/Linux box you migrate to later.
@@ -11,7 +11,7 @@ The system Caddy is shared across all your Cursor projects (one Caddy instance, 
 
 | Path | Purpose |
 |------|---------|
-| `sites/radicle-dashboard.caddy` | This project's site blocks (`personal.localhost`, `marketing.localhost`, `api.localhost`). Symlinked into the shared `~/.config/caddy/conf.d/`. |
+| `sites/radicle-dashboard.caddy` | This project's site blocks (`personal.localhost`, `api.localhost`). Symlinked into the shared `~/.config/caddy/conf.d/`. |
 | `api-landing/index.html` | Styled landing page Caddy serves at `http://api.localhost/` so the API root isn't blank in the browser. The `/api/*` paths still proxy to `radicle-httpd`. |
 | `Caddyfile` | Standalone Caddyfile (for ad-hoc testing only). |
 | `caddy-start.sh` | Foreground runner for the standalone file. |
@@ -21,8 +21,7 @@ The system Caddy is shared across all your Cursor projects (one Caddy instance, 
 
 | URL | Backend |
 |-----|---------|
-| `http://personal.localhost`  | Next.js with `SITE_MODE=personal` (port 3100) |
-| `http://marketing.localhost` | Next.js with `SITE_MODE=marketing` (port 3200) |
+| `http://personal.localhost` | Next.js dashboard (port 3100) |
 | `http://api.localhost`       | Styled landing page + proxy to `radicle-httpd` (port 8090) |
 
 `*.localhost` resolves to `127.0.0.1` automatically on macOS — no `/etc/hosts` edits needed.
@@ -69,16 +68,12 @@ brew services start caddy            # auto-starts at login
 # 1. Radicle node + HTTP API (one terminal)
 radicle-start
 
-# 2. Personal Next.js, port 3100 (second terminal)
+# 2. Next.js dashboard, port 3100 (second terminal)
 cd dashboard
 SITE_MODE=personal PORT=3100 npm run dev
 
-# 3. Marketing Next.js, port 3200 (third terminal — only if you want both URLs locally)
-cd dashboard
-SITE_MODE=marketing PORT=3200 npm run dev
-
-# 4. Caddy is already running as a brew service.
-#    Visit http://personal.localhost / http://marketing.localhost / http://api.localhost
+# 3. Caddy is already running as a brew service.
+#    Visit http://personal.localhost and http://api.localhost
 ```
 
 To pause the shared Caddy: `brew services stop caddy`. To bring it back: `brew services start caddy`.
@@ -104,4 +99,4 @@ That's it. Done in two seconds, no Caddy restart needed (Caddy reloads live).
 
 ## Going public
 
-See [`PUBLISH_WITH_CLOUDFLARE.md`](./PUBLISH_WITH_CLOUDFLARE.md) for a step-by-step Cloudflare Tunnel guide that gives you `https://yourname.dev` and `https://radprofile.xyz` (or whatever names you pick) with $0/month hosting cost, no router port-forward, and no surprise billing.
+See [`PUBLISH_WITH_CLOUDFLARE.md`](./PUBLISH_WITH_CLOUDFLARE.md) for a step-by-step Cloudflare Tunnel guide that gives you `https://` on a domain you control with $0/month hosting cost, no router port-forward, and no surprise billing.

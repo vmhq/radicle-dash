@@ -186,11 +186,19 @@ export default async function NodePage({ searchParams }: NodePageProps) {
             <div className="mb-4 rounded-2xl border border-dashed border-border bg-surface p-6 text-sm text-muted-strong">
               <p className="font-medium text-foreground">Nothing pinned yet</p>
               <p className="mt-1 text-muted">
-                Pin a repository on your node so it shows up here:{" "}
+                Pinned repos for <code className="font-mono">radicle-httpd</code> come
+                from{" "}
                 <code className="rounded bg-black/30 px-1 font-mono text-xs">
-                  rad pin &lt;rid&gt;
-                </code>
-                . Pinning is a curation signal that other Radicle clients can use too.
+                  web.pinned.repositories
+                </code>{" "}
+                in{" "}
+                <code className="rounded bg-black/30 px-1 font-mono text-xs">
+                  $RAD_HOME/config.json
+                </code>{" "}
+                (Radicle home is usually <code className="font-mono">~/.radicle</code>
+                ). There is no <code className="font-mono">rad pin</code> CLI — edit
+                that list, then restart <code className="font-mono">radicle-httpd</code>{" "}
+                if your build only reloads config on startup.
               </p>
             </div>
           )}

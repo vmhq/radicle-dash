@@ -28,9 +28,23 @@ export function getRadicleHttpPublicLabel(): string {
   return getRadicleHttpBase();
 }
 
-/** Hostname used in Radicle Explorer URLs (e.g. rosa.radicle.xyz). */
+/**
+ * Base origin for Explorer links (`/nodes/<host>/<rid>`).
+ * Override if you use another Explorer deployment (e.g. app.radicle.xyz).
+ */
+export function getExplorerOrigin(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_RADICLE_EXPLORER_ORIGIN ?? "https://radicle.network";
+  return raw.replace(/\/$/, "");
+}
+
+/**
+ * Node hostname embedded in Explorer URLs. The Explorer UI loads repo data
+ * from this node — if it does not replicate your RID yet, the page can error
+ * after navigation. Point at a seed that hosts your repos (see FAQ).
+ */
 export function getExplorerNode(): string {
-  return process.env.NEXT_PUBLIC_RADICLE_EXPLORER_NODE ?? "rosa.radicle.xyz";
+  return process.env.NEXT_PUBLIC_RADICLE_EXPLORER_NODE ?? "iris.radicle.network";
 }
 
 /**
