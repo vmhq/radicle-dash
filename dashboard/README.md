@@ -67,7 +67,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | Variable | Purpose |
 |----------|---------|
 | `NEXT_PUBLIC_RADICLE_EXPLORER_ORIGIN` | Explorer base URL (default `https://radicle.network`) |
-| `NEXT_PUBLIC_RADICLE_EXPLORER_NODE` | Seed hostname in Explorer links (default `iris.radicle.network`). Must replicate your RIDs or Explorer shows fetch errors. |
+| `NEXT_PUBLIC_RADICLE_EXPLORER_NODE` | Seed hostname in Explorer links (default `iris.radicle.xyz`). Must replicate your RIDs or Explorer shows fetch errors. |
 | `NEXT_PUBLIC_SOURCE_URL` | Override footer **Source** link; default in code is this repo on [Radicle Explorer](https://radicle.network) |
 | `SITE_URL` | Public origin used for `<meta>` tags (`metadataBase`). Set this in production. |
 | `PORT` | Override the dev/start port (default `3100`) |

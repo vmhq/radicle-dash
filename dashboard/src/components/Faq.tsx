@@ -12,7 +12,8 @@ const ITEMS: { q: string; a: React.ReactNode }[] = [
         browser blocks the request), fetches fail with that error. Set{" "}
         <code className="font-mono">NEXT_PUBLIC_RADICLE_EXPLORER_NODE</code> in
         env to a hostname that actually hosts your repository, try another public
-        seed (e.g. <code className="font-mono">iris.radicle.network</code> or{" "}
+        seed (e.g. <code className="font-mono">iris.radicle.xyz</code>,{" "}
+        <code className="font-mono">iris.radicle.network</code>, or{" "}
         <code className="font-mono">seed.radicle.dev</code>), or wait for
         replication. You can also set{" "}
         <code className="font-mono">NEXT_PUBLIC_RADICLE_EXPLORER_ORIGIN</code> if

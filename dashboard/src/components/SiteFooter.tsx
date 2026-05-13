@@ -3,7 +3,7 @@ import { CircleDot, Code2, ExternalLink, Globe2 } from "lucide-react";
 
 /** When `NEXT_PUBLIC_SOURCE_URL` is unset, link here (this project on Radicle Explorer). */
 const DEFAULT_SOURCE_URL =
-  "https://radicle.network/nodes/iris.radicle.network/rad%3Az2v11Gpk44QqZ7zy8W9fva8wXXDBi";
+  "https://radicle.network/nodes/iris.radicle.xyz/rad:z2v11Gpk44QqZ7zy8W9fva8wXXDBi";
 
 export function SiteFooter() {
   const sourceUrl =

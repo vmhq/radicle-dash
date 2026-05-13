@@ -42,9 +42,10 @@ export function getExplorerOrigin(): string {
  * Node hostname embedded in Explorer URLs. The Explorer UI loads repo data
  * from this node — if it does not replicate your RID yet, the page can error
  * after navigation. Point at a seed that hosts your repos (see FAQ).
+ * Default matches canonical URLs from `rad push` (iris.radicle.xyz).
  */
 export function getExplorerNode(): string {
-  return process.env.NEXT_PUBLIC_RADICLE_EXPLORER_NODE ?? "iris.radicle.network";
+  return process.env.NEXT_PUBLIC_RADICLE_EXPLORER_NODE ?? "iris.radicle.xyz";
 }
 
 /**
