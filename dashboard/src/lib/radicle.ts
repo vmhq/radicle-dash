@@ -106,8 +106,18 @@ export type ActivityEntry = {
  * Values ≥ 1e12 are treated as epoch milliseconds.
  */
 export function normalizeCommitterTimeSeconds(t: unknown): number | null {
-  if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return null;
-  return t >= 1e12 ? Math.floor(t / 1000) : Math.floor(t);
+  let n: number;
+  if (typeof t === "number" && Number.isFinite(t)) {
+    n = t;
+  } else if (typeof t === "string" && t.trim() !== "") {
+    const p = Number(t);
+    if (!Number.isFinite(p)) return null;
+    n = p;
+  } else {
+    return null;
+  }
+  if (n <= 0) return null;
+  return n >= 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
 function commitWithNormalizedTime(c: Commit): Commit | null {
@@ -119,27 +129,14 @@ function commitWithNormalizedTime(c: Commit): Commit | null {
   };
 }
 
-/** Infer API ordering within a page (newest-first vs oldest-first). */
-function commitsPageTimeOrder(batch: Commit[]): "desc" | "asc" | "unknown" {
-  const times: number[] = [];
-  for (const c of batch) {
-    const t = normalizeCommitterTimeSeconds(c.committer?.time);
-    if (t !== null) times.push(t);
-  }
-  if (times.length < 2) return "unknown";
-  const a = times[0]!;
-  const b = times[times.length - 1]!;
-  if (a > b) return "desc";
-  if (a < b) return "asc";
-  return "unknown";
-}
-
 /**
- * Fetch recent commits from a repo, paginating until we either run out or
- * hit a commit older than `sinceUnix`.
+ * Fetch commits from `radicle-httpd` within the last year window.
  *
- * `radicle-httpd` caps `perPage` at 5 and ignores `since=`, so we paginate
- * with `?page=N&perPage=5` and filter client-side.
+ * `radicle-httpd` caps `perPage` at 5 and ignores `since=`. Pages are not
+ * guaranteed to be strictly ordered, so we never stop at the "first old"
+ * commit in a batch (that dropped newer commits on the same page). We take
+ * every commit in each page whose time is `>= sinceUnix`, and paginate until
+ * a short page or `maxPages`.
  */
 export async function fetchRepoCommits(
   rid: string,
@@ -163,28 +160,11 @@ export async function fetchRepoCommits(
     }
     if (!batch.length) break;
 
-    const order = commitsPageTimeOrder(batch);
-
-    if (order === "asc") {
-      for (const c of batch) {
-        const nc = commitWithNormalizedTime(c);
-        if (nc && nc.committer.time >= sinceUnix) all.push(nc);
-      }
-      if (batch.length < 5) break;
-      continue;
-    }
-
-    let hitOlder = false;
     for (const c of batch) {
       const nc = commitWithNormalizedTime(c);
-      if (!nc) continue;
-      if (nc.committer.time < sinceUnix) {
-        hitOlder = true;
-        break;
-      }
-      all.push(nc);
+      if (nc && nc.committer.time >= sinceUnix) all.push(nc);
     }
-    if (hitOlder || batch.length < 5) break;
+    if (batch.length < 5) break;
   }
   return all;
 }

@@ -45,28 +45,24 @@ function parseEnvLocal(text) {
 }
 
 function normalizeCommitterTimeSeconds(t) {
-  if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return null;
-  return t >= 1e12 ? Math.floor(t / 1000) : Math.floor(t);
+  let n;
+  if (typeof t === "number" && Number.isFinite(t)) {
+    n = t;
+  } else if (typeof t === "string" && t.trim() !== "") {
+    const p = Number(t);
+    if (!Number.isFinite(p)) return null;
+    n = p;
+  } else {
+    return null;
+  }
+  if (n <= 0) return null;
+  return n >= 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
 function commitWithNormalizedTime(c) {
   const ts = normalizeCommitterTimeSeconds(c?.committer?.time);
   if (ts === null || !c?.committer) return null;
   return { ...c, committer: { ...c.committer, time: ts } };
-}
-
-function commitsPageTimeOrder(batch) {
-  const times = [];
-  for (const c of batch) {
-    const t = normalizeCommitterTimeSeconds(c?.committer?.time);
-    if (t !== null) times.push(t);
-  }
-  if (times.length < 2) return "unknown";
-  const a = times[0];
-  const b = times[times.length - 1];
-  if (a > b) return "desc";
-  if (a < b) return "asc";
-  return "unknown";
 }
 
 async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
@@ -78,28 +74,11 @@ async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
     const batch = await res.json();
     if (!Array.isArray(batch) || batch.length === 0) break;
 
-    const order = commitsPageTimeOrder(batch);
-
-    if (order === "asc") {
-      for (const c of batch) {
-        const nc = commitWithNormalizedTime(c);
-        if (nc && nc.committer.time >= sinceUnix) all.push(nc);
-      }
-      if (batch.length < 5) break;
-      continue;
-    }
-
-    let hitOlder = false;
     for (const c of batch) {
       const nc = commitWithNormalizedTime(c);
-      if (!nc) continue;
-      if (nc.committer.time < sinceUnix) {
-        hitOlder = true;
-        break;
-      }
-      all.push(nc);
+      if (nc && nc.committer.time >= sinceUnix) all.push(nc);
     }
-    if (hitOlder || batch.length < 5) break;
+    if (batch.length < 5) break;
   }
   return all;
 }

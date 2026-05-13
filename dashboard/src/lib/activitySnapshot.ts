@@ -18,6 +18,11 @@ function isActivityEntry(x: unknown): x is ActivityEntry {
   const committer = commit.committer;
   if (!committer || typeof committer !== "object") return false;
   const t = (committer as { time?: unknown }).time;
+  const timeOk =
+    typeof t === "number" ||
+    (typeof t === "string" &&
+      t.trim() !== "" &&
+      Number.isFinite(Number(t)));
   const summary = commit.summary;
   const summaryOk =
     summary === undefined ||
@@ -28,7 +33,7 @@ function isActivityEntry(x: unknown): x is ActivityEntry {
     typeof o.repoName === "string" &&
     typeof commit.id === "string" &&
     summaryOk &&
-    typeof t === "number"
+    timeOk
   );
 }
 
