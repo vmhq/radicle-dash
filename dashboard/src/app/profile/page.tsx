@@ -56,14 +56,15 @@ export default async function ProfilePage() {
   const ancestryMax = getActivityAncestryMaxCommits();
   const heatmapWeeks = getActivityHeatmapWeeks(historyDays);
   const activity =
-    snapshotActivity ??
-    (await fetchProfileActivity(
-      repos,
-      historyDays,
-      base,
-      maxCommitPages,
-      ancestryMax,
-    ));
+    snapshotActivity && snapshotActivity.length > 0
+      ? snapshotActivity
+      : await fetchProfileActivity(
+          repos,
+          historyDays,
+          base,
+          maxCommitPages,
+          ancestryMax,
+        );
 
   // Map each rid to its most recent commit time (activity is already sorted desc).
   const lastCommitByRid: Record<string, number> = {};

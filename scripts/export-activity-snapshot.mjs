@@ -64,10 +64,36 @@ function clampEnvIntAllowZero(raw, fallback, max) {
 function unwrapCommitterTimeValue(t) {
   if (t === null || t === undefined) return t;
   if (typeof t !== "object" || Array.isArray(t)) return t;
-  if (typeof t.seconds === "number" || typeof t.seconds === "string") {
+  if (
+    ("email" in t || "name" in t) &&
+    "time" in t &&
+    t.time !== undefined &&
+    t.time !== null
+  ) {
+    return t.time;
+  }
+  if (
+    "seconds" in t &&
+    (typeof t.seconds === "number" || typeof t.seconds === "string")
+  ) {
     return t.seconds;
   }
-  if ("$date" in t) return t.$date;
+  if ("$date" in t && t.$date !== undefined) return t.$date;
+  if ("unix" in t && (typeof t.unix === "number" || typeof t.unix === "string")) {
+    return t.unix;
+  }
+  if (
+    "timestamp" in t &&
+    (typeof t.timestamp === "number" || typeof t.timestamp === "string")
+  ) {
+    return t.timestamp;
+  }
+  if ("sec" in t && (typeof t.sec === "number" || typeof t.sec === "string")) {
+    return t.sec;
+  }
+  if ("time" in t && (typeof t.time === "number" || typeof t.time === "string")) {
+    return t.time;
+  }
   return t;
 }
 
@@ -100,7 +126,17 @@ function parseStringCommitterTime(raw) {
 }
 
 function normalizeCommitterTimeSeconds(t) {
-  let v = unwrapCommitterTimeValue(t);
+  if (t instanceof Date) {
+    const ms = t.getTime();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return Math.floor(ms / 1000);
+  }
+  let v = t;
+  for (let i = 0; i < 8; i++) {
+    const next = unwrapCommitterTimeValue(v);
+    if (next === v) break;
+    v = next;
+  }
   if (typeof v === "bigint") {
     const bn = Number(v);
     if (!Number.isFinite(bn) || bn <= 0) return null;
@@ -120,10 +156,40 @@ function normalizeCommitterTimeSeconds(t) {
   return n >= 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
+function rawCommitterTime(c) {
+  const ct = c.committer;
+  if (ct && typeof ct === "object") {
+    const v = ct.time ?? ct.timestamp ?? ct.date ?? ct.unix ?? ct.seconds;
+    if (v !== undefined && v !== null) return v;
+  }
+  const au = c.author;
+  if (au && typeof au === "object") {
+    const v = au.time ?? au.timestamp ?? au.date;
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
+
 function commitWithNormalizedTime(c) {
-  const ts = normalizeCommitterTimeSeconds(c?.committer?.time);
-  if (ts === null || !c?.committer) return null;
-  return { ...c, committer: { ...c.committer, time: ts } };
+  const raw = rawCommitterTime(c);
+  const ts = normalizeCommitterTimeSeconds(raw);
+  if (ts === null) return null;
+  const baseCommitter =
+    c.committer ??
+    (c.author
+      ? { name: c.author.name, email: c.author.email, time: ts }
+      : { name: "", email: "", time: ts });
+  const id =
+    (typeof c.id === "string" && c.id.trim()) ||
+    (typeof c.sha === "string" && String(c.sha).trim()) ||
+    "";
+  if (!id) return null;
+  return {
+    ...c,
+    id,
+    parents: Array.isArray(c.parents) ? c.parents : [],
+    committer: { ...baseCommitter, time: ts },
+  };
 }
 
 async function fetchCommits(base, rid, sinceUnix, maxPages) {

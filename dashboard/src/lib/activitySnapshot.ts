@@ -1,8 +1,9 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import {
-  normalizeCommitterTimeSeconds,
+  normalizeCommitCalendarTime,
   type ActivityEntry,
+  type Commit,
 } from "@/lib/radicle";
 
 function isActivityEntry(x: unknown): x is ActivityEntry {
@@ -12,9 +13,11 @@ function isActivityEntry(x: unknown): x is ActivityEntry {
   if (!c || typeof c !== "object") return false;
   const commit = c as Record<string, unknown>;
   const committer = commit.committer;
-  if (!committer || typeof committer !== "object") return false;
-  const t = (committer as { time?: unknown }).time;
-  const timeOk = normalizeCommitterTimeSeconds(t) !== null;
+  const author = commit.author;
+  const hasCommitter = committer && typeof committer === "object";
+  const hasAuthor = author && typeof author === "object";
+  if (!hasCommitter && !hasAuthor) return false;
+  const timeOk = normalizeCommitCalendarTime(c as Commit) !== null;
   const summary = commit.summary;
   const summaryOk =
     summary === undefined ||
@@ -101,9 +104,12 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
             ? rawCommit.sha
             : "";
       if (!commitId) continue;
-      const rawTs = e.commit.committer.time;
-      const ts = normalizeCommitterTimeSeconds(rawTs);
+      const ts = normalizeCommitCalendarTime(e.commit);
       if (ts === null || !Number.isFinite(ts)) continue;
+      const baseCommitter =
+        e.commit.committer && typeof e.commit.committer === "object"
+          ? e.commit.committer
+          : { name: "", email: "", time: ts };
       normalized.push({
         ...e,
         commit: {
@@ -113,7 +119,7 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
             e.commit.summary === undefined || e.commit.summary === null
               ? ""
               : e.commit.summary,
-          committer: { ...e.commit.committer, time: ts },
+          committer: { ...baseCommitter, time: ts },
         },
       });
     }

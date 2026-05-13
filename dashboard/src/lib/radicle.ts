@@ -111,7 +111,17 @@ export type ActivityEntry = {
  * not drop every row.
  */
 export function normalizeCommitterTimeSeconds(t: unknown): number | null {
-  let v = unwrapCommitterTimeValue(t);
+  if (t instanceof Date) {
+    const ms = t.getTime();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return Math.floor(ms / 1000);
+  }
+  let v: unknown = t;
+  for (let i = 0; i < 8; i++) {
+    const next = unwrapCommitterTimeValue(v);
+    if (next === v) break;
+    v = next;
+  }
   if (typeof v === "bigint") {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) return null;
@@ -131,15 +141,39 @@ export function normalizeCommitterTimeSeconds(t: unknown): number | null {
   return n >= 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
-/** Single-level unwrap for protobuf-style or BSON-style JSON. */
+/** Single-level unwrap for protobuf-style, BSON, or nested blobs. */
 function unwrapCommitterTimeValue(t: unknown): unknown {
   if (t === null || t === undefined) return t;
   if (typeof t !== "object" || Array.isArray(t)) return t;
   const o = t as Record<string, unknown>;
+  // Whole committer/author object accidentally stored under `time`
+  if (
+    ("email" in o || "name" in o) &&
+    "time" in o &&
+    o.time !== undefined &&
+    o.time !== null
+  ) {
+    return o.time;
+  }
   if ("seconds" in o && (typeof o.seconds === "number" || typeof o.seconds === "string")) {
     return o.seconds;
   }
-  if ("$date" in o) return o.$date;
+  if ("$date" in o && o.$date !== undefined) return o.$date;
+  if ("unix" in o && (typeof o.unix === "number" || typeof o.unix === "string")) {
+    return o.unix;
+  }
+  if (
+    "timestamp" in o &&
+    (typeof o.timestamp === "number" || typeof o.timestamp === "string")
+  ) {
+    return o.timestamp;
+  }
+  if ("sec" in o && (typeof o.sec === "number" || typeof o.sec === "string")) {
+    return o.sec;
+  }
+  if ("time" in o && (typeof o.time === "number" || typeof o.time === "string")) {
+    return o.time;
+  }
   return t;
 }
 
@@ -175,12 +209,46 @@ function parseStringCommitterTime(raw: string): number | null {
   return null;
 }
 
+function rawCommitterTime(c: Commit): unknown {
+  const ct = c.committer as Record<string, unknown> | undefined | null;
+  if (ct) {
+    const v =
+      ct.time ?? ct.timestamp ?? ct.date ?? ct.unix ?? ct.seconds;
+    if (v !== undefined && v !== null) return v;
+  }
+  const au = c.author as Record<string, unknown> | undefined | null;
+  if (au) {
+    const v = au.time ?? au.timestamp ?? au.date;
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
+
+/** Heatmap / UI: resolve committer (or author) time the same way as ingestion. */
+export function normalizeCommitCalendarTime(c: Commit): number | null {
+  return normalizeCommitterTimeSeconds(rawCommitterTime(c));
+}
+
 function commitWithNormalizedTime(c: Commit): Commit | null {
-  const ts = normalizeCommitterTimeSeconds(c.committer?.time);
+  const raw = rawCommitterTime(c);
+  const ts = normalizeCommitterTimeSeconds(raw);
   if (ts === null) return null;
+  const baseCommitter =
+    c.committer ??
+    (c.author
+      ? { name: c.author.name, email: c.author.email, time: ts }
+      : { name: "", email: "", time: ts });
+  const cr = c as Record<string, unknown>;
+  const id =
+    (typeof c.id === "string" && c.id.trim()) ||
+    (typeof cr.sha === "string" && String(cr.sha).trim()) ||
+    "";
+  if (!id) return null;
   return {
     ...c,
-    committer: { ...c.committer, time: ts },
+    id,
+    parents: Array.isArray(c.parents) ? c.parents : [],
+    committer: { ...baseCommitter, time: ts },
   };
 }
 

@@ -1,5 +1,5 @@
 import {
-  normalizeCommitterTimeSeconds,
+  normalizeCommitCalendarTime,
   type ActivityEntry,
 } from "@/lib/radicle";
 import { formatActivityHistoryLabel } from "@/lib/env";
@@ -36,8 +36,8 @@ export function ActivityHeatmap({
   // Bucket commits by UTC calendar day.
   const counts = new Map<string, number>();
   for (const e of entries) {
+    let t = normalizeCommitCalendarTime(e.commit);
     const raw = e.commit.committer?.time;
-    let t = normalizeCommitterTimeSeconds(raw);
     if (
       (t == null || !Number.isFinite(t)) &&
       typeof raw === "number" &&
