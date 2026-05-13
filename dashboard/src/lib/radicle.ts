@@ -103,15 +103,25 @@ export type ActivityEntry = {
 
 /**
  * `radicle-httpd` returns committer time as Unix seconds; some payloads use ms.
- * Values ≥ 1e12 are treated as epoch milliseconds.
+ * Values ≥ 1e12 are treated as epoch milliseconds. Hand-written snapshots may
+ * use ISO-8601 strings for `committer.time`; those are parsed as UTC.
  */
 export function normalizeCommitterTimeSeconds(t: unknown): number | null {
   let n: number;
   if (typeof t === "number" && Number.isFinite(t)) {
     n = t;
-  } else if (typeof t === "string" && t.trim() !== "") {
-    const p = Number(t);
-    if (!Number.isFinite(p)) return null;
+  } else if (typeof t === "string") {
+    const s = t.trim();
+    if (s === "") return null;
+    // Prefer ISO / human dates over treating "2024-05-10..." as a huge integer.
+    const hasNonNumericEpochChars = /[^\d.]/.test(s);
+    if (hasNonNumericEpochChars) {
+      const ms = Date.parse(s);
+      if (!Number.isFinite(ms) || ms <= 0) return null;
+      return Math.floor(ms / 1000);
+    }
+    const p = Number(s);
+    if (!Number.isFinite(p) || p <= 0) return null;
     n = p;
   } else {
     return null;
@@ -127,6 +137,33 @@ function commitWithNormalizedTime(c: Commit): Commit | null {
     ...c,
     committer: { ...c.committer, time: ts },
   };
+}
+
+/** `radicle-httpd` usually returns string parents; tolerate `{ id }` shapes. */
+export function normalizeParentIds(parents: unknown): string[] {
+  if (!Array.isArray(parents)) return [];
+  const out: string[] = [];
+  for (const p of parents) {
+    if (typeof p === "string" && p.length > 0) out.push(p);
+    else if (p && typeof p === "object") {
+      const id = (p as { id?: unknown; oid?: unknown }).id ?? (p as { oid?: unknown }).oid;
+      if (typeof id === "string" && id.length > 0) out.push(id);
+    }
+  }
+  return out;
+}
+
+function commitFromCommitDetailJson(data: unknown): Commit | null {
+  if (!data || typeof data !== "object") return null;
+  const o = data as Record<string, unknown>;
+  const raw = o.commit;
+  const c =
+    raw && typeof raw === "object"
+      ? (raw as Commit)
+      : typeof o.id === "string" && o.committer && typeof o.committer === "object"
+        ? (o as unknown as Commit)
+        : null;
+  return c;
 }
 
 /**
@@ -190,24 +227,122 @@ export async function fetchRepoCommitById(
       { cache: "no-store", headers: { Accept: "application/json" } },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { commit?: Commit };
-    return data.commit ?? null;
+    const data = (await res.json()) as unknown;
+    return commitFromCommitDetailJson(data);
   } catch {
     return null;
   }
+}
+
+const ANCESTRY_FETCH_CONCURRENCY = 20;
+
+/**
+ * Walk parent pointers (BFS) to collect in-window commits. Uses every commit
+ * already loaded from pagination (and the tip) **without extra HTTP** to
+ * enqueue parents, then fetches unknown OIDs until `maxHttpFetches` is reached.
+ * Merge commits need both parents; parent arrays may be strings or `{ id }`.
+ */
+export async function fetchCommitsViaParentWalk(
+  rid: string,
+  headOid: string | undefined,
+  preloaded: Map<string, Commit>,
+  sinceUnix: number,
+  baseUrl: string | undefined,
+  maxHttpFetches: number,
+): Promise<Commit[]> {
+  if (maxHttpFetches <= 0) return [];
+
+  const inWindow = new Map<string, Commit>();
+  const expanded = new Set<string>();
+  const q: string[] = [];
+
+  const consider = (raw: Commit | null) => {
+    const nc = raw ? commitWithNormalizedTime(raw) : null;
+    if (!nc) return;
+    if (expanded.has(nc.id)) return;
+    expanded.add(nc.id);
+    if (nc.committer.time >= sinceUnix) inWindow.set(nc.id, nc);
+    for (const p of normalizeParentIds(nc.parents)) {
+      if (p) q.push(p);
+    }
+  };
+
+  for (const c of preloaded.values()) {
+    consider(c);
+  }
+
+  if (headOid && !expanded.has(headOid)) {
+    q.push(headOid);
+  }
+
+  let httpFetches = 0;
+  while (q.length > 0 && httpFetches < maxHttpFetches) {
+    while (q.length > 0 && httpFetches < maxHttpFetches) {
+      const id = q[0];
+      if (!id) {
+        q.shift();
+        continue;
+      }
+      if (expanded.has(id)) {
+        q.shift();
+        continue;
+      }
+      const cached = preloaded.get(id);
+      if (cached) {
+        q.shift();
+        consider(cached);
+        continue;
+      }
+      break;
+    }
+    if (q.length === 0) break;
+    if (httpFetches >= maxHttpFetches) break;
+
+    const chunk: string[] = [];
+    while (
+      q.length > 0 &&
+      chunk.length < ANCESTRY_FETCH_CONCURRENCY &&
+      httpFetches + chunk.length < maxHttpFetches
+    ) {
+      const id = q.shift()!;
+      if (!id || expanded.has(id)) continue;
+      const cached = preloaded.get(id);
+      if (cached) {
+        consider(cached);
+        continue;
+      }
+      chunk.push(id);
+    }
+    if (chunk.length === 0) continue;
+
+    const raws = await Promise.all(
+      chunk.map((id) => fetchRepoCommitById(rid, id, baseUrl)),
+    );
+    httpFetches += chunk.length;
+
+    for (const raw of raws) {
+      consider(raw);
+    }
+  }
+
+  return [...inWindow.values()];
 }
 
 /**
  * Aggregate commits across the given repos within the last `sinceDays` days.
  * Returns a flat list sorted newest-first, suitable for both an activity feed
  * and a contribution heatmap. Pass `maxCommitPages` to cap paginated fetches
- * per repo (each page is at most 5 commits from radicle-httpd).
+ * per repo (each page is at most 5 commits from radicle-httpd). When
+ * `maxAncestryCommits > 0`, walks `parents`: first expands all paginated commits
+ * in memory, then follows unknown parents with HTTP (bounded by
+ * `maxAncestryCommits`) so merge history is not dropped.
  */
 export async function fetchProfileActivity(
   repos: RadicleRepoPayload[],
   sinceDays = 1095,
   baseUrl?: string,
   maxCommitPages = 3000,
+  maxAncestryCommits = 8000,
 ): Promise<ActivityEntry[]> {
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
   const results = await Promise.all(
@@ -220,19 +355,33 @@ export async function fetchProfileActivity(
         maxCommitPages,
       );
       const headOid = repo.payloads["xyz.radicle.project"].meta.head;
-      const merged: Commit[] = [...commits];
+      const byId = new Map<string, Commit>();
+      for (const c of commits) byId.set(c.id, c);
+
       if (headOid) {
         const tip = await fetchRepoCommitById(rid, headOid, baseUrl);
         const nc = tip ? commitWithNormalizedTime(tip) : null;
-        if (
-          nc &&
-          nc.committer.time >= sinceUnix &&
-          !merged.some((c) => c.id === nc.id)
-        ) {
-          merged.push(nc);
+        if (nc && nc.committer.time >= sinceUnix) byId.set(nc.id, nc);
+      }
+
+      if (maxAncestryCommits > 0) {
+        const preloaded = new Map<string, Commit>(byId);
+        const walked = await fetchCommitsViaParentWalk(
+          rid,
+          headOid,
+          preloaded,
+          sinceUnix,
+          baseUrl,
+          maxAncestryCommits,
+        );
+        for (const c of walked) {
+          if (!byId.has(c.id)) byId.set(c.id, c);
         }
       }
-      merged.sort((a, b) => b.committer.time - a.committer.time);
+
+      const merged = [...byId.values()].sort(
+        (a, b) => b.committer.time - a.committer.time,
+      );
       const repoName = repo.payloads["xyz.radicle.project"].data.name;
       return merged.map((commit) => ({ rid, repoName, commit }));
     }),

@@ -63,7 +63,8 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | `RADICLE_REPO_IDS` | Comma-separated RIDs to feature on `/profile`. If unset, the page renders an empty state. |
 | `RADICLE_ACTIVITY_HISTORY_DAYS` | How far back `/profile` pulls commits (default **1095** ≈ 3 years; clamped 30–3650). |
 | `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` | Max `?page=` fetches per repo at 5 commits/page (default **3000** ≈ 15k commits; clamped 1–20000). |
-| `RADICLE_ACTIVITY_SNAPSHOT_PATH` | Optional JSON file for heatmap/feed (see root README). |
+| `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS` | Max `GET .../commits/<oid>` fetches **after** expanding parents from commits already loaded from pagination (default **8000**; clamped 0–50000; **0** disables). |
+| `RADICLE_ACTIVITY_SNAPSHOT_PATH` | Optional JSON file for heatmap/feed; when set, **overrides** live activity until unset or the file is re-generated (see root README). Relative paths are tried from `process.cwd()`, `process.cwd()/dashboard`, and `process.cwd()/..`. Prefer an **absolute** path in production. |
 
 ### Misc
 
@@ -79,10 +80,10 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 
 | Page | API call(s) |
 |------|-------------|
-| `/profile` | `GET /api/v1/repos/<rid>` per RID; `GET .../commits?page=N` for history **plus** `GET .../commits/<meta.head>` so the branch tip is included (paginated list can omit it in radicle-httpd) |
+| `/profile` | `GET .../repos/<rid>`; paginated `GET .../commits?page=`; `GET .../commits/<meta.head>`; optional **parent-walk** via repeated `GET .../commits/<oid>` following `parents` (bounded by env) |
 | `/node` | `GET /api/v1/repos?show=all` and `?show=pinned` (so the toggle counts are accurate); `GET /api/v1/node` for the alias and NID |
 
-`show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned (up to `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`) and commits inside `RADICLE_ACTIVITY_HISTORY_DAYS` are kept (timestamps are normalized if the API returns epoch milliseconds or numeric strings).
+`show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned (up to `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`) and commits inside `RADICLE_ACTIVITY_HISTORY_DAYS` are kept. **Parent walk** expands `parents` from every commit already in that paginated set (no extra HTTP), then follows unknown parents with `GET .../commits/<oid>` up to `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS`, and enqueues `meta.head` if it was not reached yet — so merge second parents and gaps vs the paginated slice are filled when the API exposes parent IDs. Timestamps are normalized if the API returns epoch milliseconds or numeric strings.
 
 Every fetch uses `cache: "no-store"` and the pages are `force-dynamic`, so refreshing always shows the current state of your node.
 

@@ -19,13 +19,14 @@ import { RepoExplorer } from "@/components/RepoExplorer";
 import { SiteHeader } from "@/components/SiteHeader";
 import { StatTile } from "@/components/StatTile";
 import {
+  formatActivityHistoryLabel,
+  getActivityAncestryMaxCommits,
   getActivityHeatmapWeeks,
   getActivityHistoryDays,
   getActivityMaxCommitPages,
   getRadicleHttpBase,
   getRadicleHttpPublicLabel,
   getSiteMode,
-  formatActivityHistoryLabel,
 } from "@/lib/env";
 import {
   PROFILE_ALIAS,
@@ -52,6 +53,7 @@ export default async function ProfilePage() {
   const snapshotActivity = await readActivitySnapshot();
   const historyDays = getActivityHistoryDays();
   const maxCommitPages = getActivityMaxCommitPages();
+  const ancestryMax = getActivityAncestryMaxCommits();
   const heatmapWeeks = getActivityHeatmapWeeks(historyDays);
   const activity =
     snapshotActivity ??
@@ -60,6 +62,7 @@ export default async function ProfilePage() {
       historyDays,
       base,
       maxCommitPages,
+      ancestryMax,
     ));
 
   // Map each rid to its most recent commit time (activity is already sorted desc).

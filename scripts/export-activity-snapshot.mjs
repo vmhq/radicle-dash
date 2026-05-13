@@ -9,7 +9,8 @@
  *   node scripts/export-activity-snapshot.mjs path/to/.env.local path/to/out.json
  *
  * Reads RADICLE_HTTP_BASE, RADICLE_REPO_IDS, and optional
- * RADICLE_ACTIVITY_HISTORY_DAYS / RADICLE_ACTIVITY_MAX_COMMIT_PAGES from the
+ * RADICLE_ACTIVITY_HISTORY_DAYS / RADICLE_ACTIVITY_MAX_COMMIT_PAGES /
+ * RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS from the
  * .env.local file (first arg defaults to ./dashboard/.env.local). Output defaults to
  * ./dashboard/data/activity-snapshot.json
  */
@@ -51,13 +52,30 @@ function clampEnvInt(raw, fallback, min, max) {
   return Math.min(Math.max(n, min), max);
 }
 
+function clampEnvIntAllowZero(raw, fallback, max) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return fallback;
+  }
+  const n = Number.parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.min(n, max);
+}
+
 function normalizeCommitterTimeSeconds(t) {
   let n;
   if (typeof t === "number" && Number.isFinite(t)) {
     n = t;
-  } else if (typeof t === "string" && t.trim() !== "") {
-    const p = Number(t);
-    if (!Number.isFinite(p)) return null;
+  } else if (typeof t === "string") {
+    const s = t.trim();
+    if (s === "") return null;
+    const hasNonNumericEpochChars = /[^\d.]/.test(s);
+    if (hasNonNumericEpochChars) {
+      const ms = Date.parse(s);
+      if (!Number.isFinite(ms) || ms <= 0) return null;
+      return Math.floor(ms / 1000);
+    }
+    const p = Number(s);
+    if (!Number.isFinite(p) || p <= 0) return null;
     n = p;
   } else {
     return null;
@@ -103,12 +121,122 @@ async function fetchRepoMeta(base, rid) {
   return res.json();
 }
 
+function normalizeParentIds(parents) {
+  if (!Array.isArray(parents)) return [];
+  const out = [];
+  for (const p of parents) {
+    if (typeof p === "string" && p.length > 0) out.push(p);
+    else if (p && typeof p === "object") {
+      const id = p.id ?? p.oid;
+      if (typeof id === "string" && id.length > 0) out.push(id);
+    }
+  }
+  return out;
+}
+
+function commitFromDetailJson(data) {
+  if (!data || typeof data !== "object") return null;
+  if (data.commit && typeof data.commit === "object") return data.commit;
+  if (typeof data.id === "string" && data.committer && typeof data.committer === "object") {
+    return data;
+  }
+  return null;
+}
+
 async function fetchCommitById(base, rid, oid) {
   const url = `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits/${encodeURIComponent(oid)}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) return null;
   const data = await res.json();
-  return data.commit ?? null;
+  return commitFromDetailJson(data);
+}
+
+const ANCESTRY_CONCURRENCY = 20;
+
+async function fetchAncestryCommits(
+  base,
+  rid,
+  headOid,
+  preloaded,
+  sinceUnix,
+  maxHttpFetches,
+) {
+  if (maxHttpFetches <= 0) return [];
+
+  const inWindow = new Map();
+  const expanded = new Set();
+  const q = [];
+
+  const consider = (raw) => {
+    const nc = commitWithNormalizedTime(raw);
+    if (!nc) return;
+    if (expanded.has(nc.id)) return;
+    expanded.add(nc.id);
+    if (nc.committer.time >= sinceUnix) inWindow.set(nc.id, nc);
+    for (const p of normalizeParentIds(nc.parents)) {
+      if (p) q.push(p);
+    }
+  };
+
+  for (const c of preloaded.values()) {
+    consider(c);
+  }
+
+  if (headOid && !expanded.has(headOid)) {
+    q.push(headOid);
+  }
+
+  let httpFetches = 0;
+  while (q.length > 0 && httpFetches < maxHttpFetches) {
+    while (q.length > 0 && httpFetches < maxHttpFetches) {
+      const id = q[0];
+      if (!id) {
+        q.shift();
+        continue;
+      }
+      if (expanded.has(id)) {
+        q.shift();
+        continue;
+      }
+      const cached = preloaded.get(id);
+      if (cached) {
+        q.shift();
+        consider(cached);
+        continue;
+      }
+      break;
+    }
+    if (q.length === 0) break;
+    if (httpFetches >= maxHttpFetches) break;
+
+    const chunk = [];
+    while (
+      q.length > 0 &&
+      chunk.length < ANCESTRY_CONCURRENCY &&
+      httpFetches + chunk.length < maxHttpFetches
+    ) {
+      const id = q.shift();
+      if (!id || expanded.has(id)) continue;
+      const cached = preloaded.get(id);
+      if (cached) {
+        consider(cached);
+        continue;
+      }
+      chunk.push(id);
+    }
+    if (chunk.length === 0) continue;
+
+    const raws = await Promise.all(
+      chunk.map((id) => fetchCommitById(base, rid, id)),
+    );
+    httpFetches += chunk.length;
+
+    for (const raw of raws) {
+      consider(raw);
+    }
+  }
+
+  return [...inWindow.values()];
 }
 
 async function main() {
@@ -136,6 +264,11 @@ async function main() {
     1,
     20000,
   );
+  const ancestryMax = clampEnvIntAllowZero(
+    env.RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS,
+    8000,
+    50000,
+  );
   const sinceUnix = Math.floor(Date.now() / 1000) - historyDays * 86400;
 
   const entries = [];
@@ -145,19 +278,30 @@ async function main() {
       meta?.payloads?.["xyz.radicle.project"]?.data?.name ?? rid.slice(0, 16);
     let commits = await fetchCommits(base, rid, sinceUnix, maxCommitPages);
     const headOid = meta?.payloads?.["xyz.radicle.project"]?.meta?.head;
+    const byId = new Map();
+    for (const c of commits) byId.set(c.id, c);
     if (headOid) {
       const tip = await fetchCommitById(base, rid, headOid);
       const nc = tip ? commitWithNormalizedTime(tip) : null;
-      if (
-        nc &&
-        nc.committer.time >= sinceUnix &&
-        !commits.some((c) => c.id === nc.id)
-      ) {
-        commits = [...commits, nc].sort(
-          (a, b) => b.committer.time - a.committer.time,
-        );
+      if (nc && nc.committer.time >= sinceUnix) byId.set(nc.id, nc);
+    }
+    if (ancestryMax > 0) {
+      const preloaded = new Map(byId);
+      const walked = await fetchAncestryCommits(
+        base,
+        rid,
+        headOid,
+        preloaded,
+        sinceUnix,
+        ancestryMax,
+      );
+      for (const c of walked) {
+        if (!byId.has(c.id)) byId.set(c.id, c);
       }
     }
+    commits = [...byId.values()].sort(
+      (a, b) => b.committer.time - a.committer.time,
+    );
     for (const commit of commits) {
       entries.push({ rid, repoName: name, commit });
     }
@@ -180,6 +324,7 @@ async function main() {
     entryCount: unique.length,
     historyDays,
     maxCommitPages,
+    ancestryMax,
     entries: unique,
   };
 
@@ -188,7 +333,7 @@ async function main() {
   console.log(
     "Wrote",
     outPath,
-    `(${unique.length} commit rows, last ${historyDays}d, max ${maxCommitPages} pages/repo)`,
+    `(${unique.length} commit rows, last ${historyDays}d, ${maxCommitPages} pages/repo, ancestry cap ${ancestryMax})`,
   );
 }
 

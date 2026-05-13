@@ -96,3 +96,18 @@ export function formatActivityHistoryLabel(days: number): string {
   }
   return `${days} days`;
 }
+
+/**
+ * Max `GET .../commits/<oid>` calls per repo when walking parents from
+ * `meta.head` (fills gaps left by paginated `/commits`). Set
+ * `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS` to `0` to disable. Clamped 0–50000.
+ * Counts only HTTP fetches for commits not already in the paginated/tip set.
+ * Default 8000.
+ */
+export function getActivityAncestryMaxCommits(): number {
+  const raw = process.env.RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS?.trim();
+  if (raw === undefined || raw === "") return 8000;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return 8000;
+  return Math.min(parsed, 50000);
+}

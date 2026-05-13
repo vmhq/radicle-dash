@@ -114,6 +114,8 @@ Optional workaround:
 
 Then **heatmap** and **recent activity** use the snapshot; **repository cards** still come from **`RADICLE_HTTP_BASE`** on M3 (replication / seeding as today). Re-run the export and re-copy whenever you want the public view to catch up.
 
+The loader accepts the export shape (`entries` array) or a top-level array, and optional `commits` / `activity` keys. Each row needs `rid`, `repoName`, and `commit` with `committer.time` as **Unix seconds**, **epoch ms** (≥1e12, auto-scaled), or an **ISO-8601 string**, plus `commit.id` or `commit.sha`. If the heatmap still looks empty after a refresh, use an **absolute** `RADICLE_ACTIVITY_SNAPSHOT_PATH` so the server’s working directory cannot point at the wrong file.
+
 ## Before you push source to Radicle
 
 1. **`dashboard/.env.local`** must stay untracked. Never `git add -f` it.
