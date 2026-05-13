@@ -18,23 +18,25 @@ const BUCKET_DEMO = [0, 1, 2, 4, 8] as const;
 export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
   const days = weeks * 7;
 
-  // Anchor the rightmost column to the week containing "today".
-  const today = startOfDay(new Date());
+  // Anchor the rightmost column to the UTC week containing "today" (matches
+  // typical contribution graphs; avoids duplicate pages stacking on one local day).
+  const today = startOfUtcDay(new Date());
   const endDate = new Date(today);
-  endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
+  endDate.setUTCDate(endDate.getUTCDate() + (6 - endDate.getUTCDay()));
   const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - (days - 1));
+  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
 
-  // Bucket commits by local-day.
+  // Bucket commits by UTC calendar day.
   const counts = new Map<string, number>();
   for (const e of entries) {
+    const raw = e.commit.committer?.time;
     const t =
-      normalizeCommitterTimeSeconds(e.commit.committer?.time) ??
-      e.commit.committer?.time;
+      normalizeCommitterTimeSeconds(raw) ??
+      (typeof raw === "number" ? raw : Number(raw));
     if (t == null || !Number.isFinite(t)) continue;
-    const d = startOfDay(new Date(t * 1000));
+    const d = startOfUtcDay(new Date(t * 1000));
     if (d < startDate || d > endDate) continue;
-    const key = dayKey(d);
+    const key = utcDayKey(d);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
@@ -45,9 +47,9 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
   for (let w = 0; w < weeks; w++) {
     const week: { date: Date; key: string; count: number }[] = [];
     for (let d = 0; d < 7; d++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + w * 7 + d);
-      const key = dayKey(date);
+      const date = new Date(startDate.getTime());
+      date.setUTCDate(startDate.getUTCDate() + w * 7 + d);
+      const key = utcDayKey(date);
       week.push({ date, key, count: counts.get(key) ?? 0 });
     }
     grid.push(week);
@@ -57,11 +59,14 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
   const monthLabels: { x: number; label: string }[] = [];
   let lastMonth = -1;
   for (let w = 0; w < weeks; w++) {
-    const m = grid[w][0].date.getMonth();
+    const m = grid[w][0].date.getUTCMonth();
     if (m !== lastMonth) {
       monthLabels.push({
         x: ROW_LABEL_WIDTH + w * (CELL + GAP),
-        label: grid[w][0].date.toLocaleString("en-US", { month: "short" }),
+        label: grid[w][0].date.toLocaleString("en-US", {
+          month: "short",
+          timeZone: "UTC",
+        }),
       });
       lastMonth = m;
     }
@@ -132,7 +137,7 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
                 ry={2}
                 fill={cellFill(cell.count)}
               >
-                <title>{`${cell.count} commit${cell.count === 1 ? "" : "s"} · ${humanDate(cell.date)}`}</title>
+                <title>{`${cell.count} commit${cell.count === 1 ? "" : "s"} · ${humanDateUtc(cell.date)}`}</title>
               </rect>
             )),
           )}
@@ -167,24 +172,25 @@ function cellFill(count: number): string {
   return "var(--accent)";
 }
 
-function startOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setHours(0, 0, 0, 0);
-  return out;
+function startOfUtcDay(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
 }
 
-function dayKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+function utcDayKey(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
-function humanDate(d: Date): string {
+function humanDateUtc(d: Date): string {
   return d.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }

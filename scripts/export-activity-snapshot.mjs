@@ -67,6 +67,7 @@ function commitWithNormalizedTime(c) {
 
 async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
   const all = [];
+  const seen = new Set();
   for (let page = 1; page <= maxPages; page++) {
     const url = `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits?page=${page}&perPage=5`;
     const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -76,7 +77,11 @@ async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
 
     for (const c of batch) {
       const nc = commitWithNormalizedTime(c);
-      if (nc && nc.committer.time >= sinceUnix) all.push(nc);
+      if (!nc || nc.committer.time < sinceUnix) continue;
+      const key = `${rid}:${nc.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(nc);
     }
     if (batch.length < 5) break;
   }
@@ -120,17 +125,25 @@ async function main() {
 
   entries.sort((a, b) => b.commit.committer.time - a.commit.committer.time);
 
+  const seenKeys = new Set();
+  const unique = entries.filter((e) => {
+    const k = `${e.rid}:${e.commit.id}`;
+    if (seenKeys.has(k)) return false;
+    seenKeys.add(k);
+    return true;
+  });
+
   const payload = {
     generatedAt: Math.floor(Date.now() / 1000),
     base,
     ridCount: rids.length,
-    entryCount: entries.length,
-    entries,
+    entryCount: unique.length,
+    entries: unique,
   };
 
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
-  console.log("Wrote", outPath, `(${entries.length} commit rows)`);
+  console.log("Wrote", outPath, `(${unique.length} commit rows)`);
 }
 
 main().catch((e) => {

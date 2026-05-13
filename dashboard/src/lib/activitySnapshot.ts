@@ -88,11 +88,14 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
     if (!rawEntries) return null;
     const entries = rawEntries.filter(isActivityEntry) as ActivityEntry[];
     if (entries.length === 0) return null;
-    const normalized: ActivityEntry[] = entries.map((e) => {
+    const normalized: ActivityEntry[] = [];
+    for (const e of entries) {
+      const rawTs = e.commit.committer.time;
       const ts =
-        normalizeCommitterTimeSeconds(e.commit.committer?.time) ??
-        e.commit.committer.time;
-      return {
+        normalizeCommitterTimeSeconds(rawTs) ??
+        (typeof rawTs === "number" ? rawTs : Number(rawTs));
+      if (!Number.isFinite(ts)) continue;
+      normalized.push({
         ...e,
         commit: {
           ...e.commit,
@@ -102,11 +105,19 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
               : e.commit.summary,
           committer: { ...e.commit.committer, time: ts },
         },
-      };
-    });
-    return normalized.sort(
+      });
+    }
+    if (normalized.length === 0) return null;
+    const sorted = normalized.sort(
       (a, b) => b.commit.committer.time - a.commit.committer.time,
     );
+    const seen = new Set<string>();
+    return sorted.filter((e) => {
+      const k = `${e.rid}:${e.commit.id}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   } catch {
     return null;
   }

@@ -146,6 +146,7 @@ export async function fetchRepoCommits(
 ): Promise<Commit[]> {
   const base = baseUrl ?? getRadicleHttpBase();
   const all: Commit[] = [];
+  const seen = new Set<string>();
   for (let page = 1; page <= maxPages; page++) {
     let batch: Commit[] = [];
     try {
@@ -162,7 +163,11 @@ export async function fetchRepoCommits(
 
     for (const c of batch) {
       const nc = commitWithNormalizedTime(c);
-      if (nc && nc.committer.time >= sinceUnix) all.push(nc);
+      if (!nc || nc.committer.time < sinceUnix) continue;
+      const dedupeKey = `${rid}:${nc.id}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      all.push(nc);
     }
     if (batch.length < 5) break;
   }
@@ -187,9 +192,16 @@ export async function fetchProfileActivity(
       return commits.map((commit) => ({ rid: repo.rid, repoName, commit }));
     }),
   );
-  return results
-    .flat()
-    .sort((a, b) => b.commit.committer.time - a.commit.committer.time);
+  const flat = results.flat().sort(
+    (a, b) => b.commit.committer.time - a.commit.committer.time,
+  );
+  const seen = new Set<string>();
+  return flat.filter((e) => {
+    const k = `${e.rid}:${e.commit.id}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 export async function fetchNodeInfo(
