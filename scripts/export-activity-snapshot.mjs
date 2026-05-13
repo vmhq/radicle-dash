@@ -44,7 +44,32 @@ function parseEnvLocal(text) {
   return env;
 }
 
-async function fetchCommits(base, rid, sinceUnix, maxPages = 80) {
+function normalizeCommitterTimeSeconds(t) {
+  if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return null;
+  return t >= 1e12 ? Math.floor(t / 1000) : Math.floor(t);
+}
+
+function commitWithNormalizedTime(c) {
+  const ts = normalizeCommitterTimeSeconds(c?.committer?.time);
+  if (ts === null || !c?.committer) return null;
+  return { ...c, committer: { ...c.committer, time: ts } };
+}
+
+function commitsPageTimeOrder(batch) {
+  const times = [];
+  for (const c of batch) {
+    const t = normalizeCommitterTimeSeconds(c?.committer?.time);
+    if (t !== null) times.push(t);
+  }
+  if (times.length < 2) return "unknown";
+  const a = times[0];
+  const b = times[times.length - 1];
+  if (a > b) return "desc";
+  if (a < b) return "asc";
+  return "unknown";
+}
+
+async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
   const all = [];
   for (let page = 1; page <= maxPages; page++) {
     const url = `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits?page=${page}&perPage=5`;
@@ -52,14 +77,27 @@ async function fetchCommits(base, rid, sinceUnix, maxPages = 80) {
     if (!res.ok) break;
     const batch = await res.json();
     if (!Array.isArray(batch) || batch.length === 0) break;
+
+    const order = commitsPageTimeOrder(batch);
+
+    if (order === "asc") {
+      for (const c of batch) {
+        const nc = commitWithNormalizedTime(c);
+        if (nc && nc.committer.time >= sinceUnix) all.push(nc);
+      }
+      if (batch.length < 5) break;
+      continue;
+    }
+
     let hitOlder = false;
     for (const c of batch) {
-      const t = c?.committer?.time;
-      if (typeof t === "number" && t < sinceUnix) {
+      const nc = commitWithNormalizedTime(c);
+      if (!nc) continue;
+      if (nc.committer.time < sinceUnix) {
         hitOlder = true;
         break;
       }
-      all.push(c);
+      all.push(nc);
     }
     if (hitOlder || batch.length < 5) break;
   }

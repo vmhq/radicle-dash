@@ -1,4 +1,7 @@
-import type { ActivityEntry } from "@/lib/radicle";
+import {
+  normalizeCommitterTimeSeconds,
+  type ActivityEntry,
+} from "@/lib/radicle";
 
 type ActivityHeatmapProps = {
   entries: ActivityEntry[];
@@ -25,8 +28,10 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
   // Bucket commits by local-day.
   const counts = new Map<string, number>();
   for (const e of entries) {
-    const t = e.commit.committer?.time;
-    if (!t) continue;
+    const t =
+      normalizeCommitterTimeSeconds(e.commit.committer?.time) ??
+      e.commit.committer?.time;
+    if (t == null || !Number.isFinite(t)) continue;
     const d = startOfDay(new Date(t * 1000));
     if (d < startDate || d > endDate) continue;
     const key = dayKey(d);
@@ -156,7 +161,7 @@ function ScaleLegend() {
 
 function cellFill(count: number): string {
   if (count === 0) return "rgba(255, 255, 255, 0.045)";
-  if (count === 1) return "color-mix(in oklab, var(--accent) 22%, transparent)";
+  if (count === 1) return "color-mix(in oklab, var(--accent) 36%, transparent)";
   if (count <= 3) return "color-mix(in oklab, var(--accent) 45%, transparent)";
   if (count <= 7) return "color-mix(in oklab, var(--accent) 70%, transparent)";
   return "var(--accent)";

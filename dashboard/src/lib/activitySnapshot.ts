@@ -1,6 +1,9 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import type { ActivityEntry } from "@/lib/radicle";
+import {
+  normalizeCommitterTimeSeconds,
+  type ActivityEntry,
+} from "@/lib/radicle";
 
 type SnapshotFile = {
   entries?: unknown[];
@@ -80,16 +83,22 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
     if (!rawEntries) return null;
     const entries = rawEntries.filter(isActivityEntry) as ActivityEntry[];
     if (entries.length === 0) return null;
-    const normalized: ActivityEntry[] = entries.map((e) => ({
-      ...e,
-      commit: {
-        ...e.commit,
-        summary:
-          e.commit.summary === undefined || e.commit.summary === null
-            ? ""
-            : e.commit.summary,
-      },
-    }));
+    const normalized: ActivityEntry[] = entries.map((e) => {
+      const ts =
+        normalizeCommitterTimeSeconds(e.commit.committer?.time) ??
+        e.commit.committer.time;
+      return {
+        ...e,
+        commit: {
+          ...e.commit,
+          summary:
+            e.commit.summary === undefined || e.commit.summary === null
+              ? ""
+              : e.commit.summary,
+          committer: { ...e.commit.committer, time: ts },
+        },
+      };
+    });
     return normalized.sort(
       (a, b) => b.commit.committer.time - a.commit.committer.time,
     );

@@ -102,6 +102,39 @@ export type ActivityEntry = {
 };
 
 /**
+ * `radicle-httpd` returns committer time as Unix seconds; some payloads use ms.
+ * Values ≥ 1e12 are treated as epoch milliseconds.
+ */
+export function normalizeCommitterTimeSeconds(t: unknown): number | null {
+  if (typeof t !== "number" || !Number.isFinite(t) || t <= 0) return null;
+  return t >= 1e12 ? Math.floor(t / 1000) : Math.floor(t);
+}
+
+function commitWithNormalizedTime(c: Commit): Commit | null {
+  const ts = normalizeCommitterTimeSeconds(c.committer?.time);
+  if (ts === null) return null;
+  return {
+    ...c,
+    committer: { ...c.committer, time: ts },
+  };
+}
+
+/** Infer API ordering within a page (newest-first vs oldest-first). */
+function commitsPageTimeOrder(batch: Commit[]): "desc" | "asc" | "unknown" {
+  const times: number[] = [];
+  for (const c of batch) {
+    const t = normalizeCommitterTimeSeconds(c.committer?.time);
+    if (t !== null) times.push(t);
+  }
+  if (times.length < 2) return "unknown";
+  const a = times[0]!;
+  const b = times[times.length - 1]!;
+  if (a > b) return "desc";
+  if (a < b) return "asc";
+  return "unknown";
+}
+
+/**
  * Fetch recent commits from a repo, paginating until we either run out or
  * hit a commit older than `sinceUnix`.
  *
@@ -112,7 +145,7 @@ export async function fetchRepoCommits(
   rid: string,
   sinceUnix: number,
   baseUrl?: string,
-  maxPages = 80,
+  maxPages = 200,
 ): Promise<Commit[]> {
   const base = baseUrl ?? getRadicleHttpBase();
   const all: Commit[] = [];
@@ -129,13 +162,27 @@ export async function fetchRepoCommits(
       break;
     }
     if (!batch.length) break;
+
+    const order = commitsPageTimeOrder(batch);
+
+    if (order === "asc") {
+      for (const c of batch) {
+        const nc = commitWithNormalizedTime(c);
+        if (nc && nc.committer.time >= sinceUnix) all.push(nc);
+      }
+      if (batch.length < 5) break;
+      continue;
+    }
+
     let hitOlder = false;
     for (const c of batch) {
-      if (c.committer?.time && c.committer.time < sinceUnix) {
+      const nc = commitWithNormalizedTime(c);
+      if (!nc) continue;
+      if (nc.committer.time < sinceUnix) {
         hitOlder = true;
         break;
       }
-      all.push(c);
+      all.push(nc);
     }
     if (hitOlder || batch.length < 5) break;
   }
