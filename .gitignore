@@ -13,6 +13,9 @@ dashboard/public/avatar.*
 dashboard/public/me.*
 dashboard/public/dippie.*
 
+# Activity snapshot (generated locally; do not commit)
+dashboard/data/activity-snapshot.json
+
 # --- Secrets & credentials (never commit) ---
 *.pem
 *.p12

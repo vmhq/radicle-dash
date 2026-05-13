@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p ${PORT:-3100}",
     "build": "next build",
+    "export-activity": "node ../scripts/export-activity-snapshot.mjs",
     "start": "next start -p ${PORT:-3100}",
     "start:personal": "PORT=3100 SITE_MODE=personal next start -p 3100",
     "start:marketing": "PORT=3200 SITE_MODE=marketing next start -p 3200",

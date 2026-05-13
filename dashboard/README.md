@@ -125,6 +125,7 @@ src/
 |---------|--------------|
 | `npm run dev` | Turbopack dev server (port from `$PORT`, default 3100) |
 | `npm run build` | Production build |
+| `npm run export-activity` | Write `data/activity-snapshot.json` from local `radicle-httpd` (see root README) |
 | `npm start` | Start the production build |
 | `npm run start:personal` | `SITE_MODE=personal PORT=3100 npm start` |
 | `npm run lint` | ESLint |

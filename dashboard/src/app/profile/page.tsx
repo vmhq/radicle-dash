@@ -31,6 +31,7 @@ import {
   getProfileLinks,
   getProfileRepoIds,
 } from "@/lib/profileRepos";
+import { readActivitySnapshot } from "@/lib/activitySnapshot";
 import { fetchProfileActivity, fetchProfileRepos } from "@/lib/radicle";
 import { shortenId } from "@/lib/visual";
 
@@ -44,7 +45,10 @@ export default async function ProfilePage() {
   const links = getProfileLinks();
 
   const { repos, failures } = await fetchProfileRepos(rids, base);
-  const activity = await fetchProfileActivity(repos, 365, base);
+  const snapshotActivity = await readActivitySnapshot();
+  const activity =
+    snapshotActivity ??
+    (await fetchProfileActivity(repos, 365, base));
 
   // Map each rid to its most recent commit time (activity is already sorted desc).
   const lastCommitByRid: Record<string, number> = {};

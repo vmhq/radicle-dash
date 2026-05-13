@@ -87,6 +87,33 @@ The **`/node`** **Pinned** tab reflects **`web.pinned.repositories`** in **`$RAD
 
 Restart Next after env changes.
 
+## Activity snapshot (M1 dev → M3 site)
+
+Radicle’s current model makes it awkward to run **the same node identity** on two laptops, while your **public Next.js site** may stay on **M3** and `radicle-httpd` there may not see commits until replication catches up from **M1**.
+
+Optional workaround:
+
+1. On **M1** (with `rad node` + `radicle-httpd` and fresh git history), from the **repo root**:
+
+   ```bash
+   cd dashboard
+   npm run export-activity
+   ```
+
+   This reads `RADICLE_HTTP_BASE` and `RADICLE_REPO_IDS` from **`dashboard/.env.local`**, calls your local HTTP API, and writes **`dashboard/data/activity-snapshot.json`** (gitignored).
+
+2. Copy that file to **M3** (same path under your clone: `dashboard/data/activity-snapshot.json`), e.g. `scp` or AirDrop.
+
+3. On **M3**, in **`dashboard/.env.local`**, set:
+
+   ```bash
+   RADICLE_ACTIVITY_SNAPSHOT_PATH=data/activity-snapshot.json
+   ```
+
+4. **Rebuild + restart** Next on M3 so the env is picked up.
+
+Then **heatmap** and **recent activity** use the snapshot; **repository cards** still come from **`RADICLE_HTTP_BASE`** on M3 (replication / seeding as today). Re-run the export and re-copy whenever you want the public view to catch up.
+
 ## Before you push source to Radicle
 
 1. **`dashboard/.env.local`** must stay untracked. Never `git add -f` it.
