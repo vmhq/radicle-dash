@@ -55,9 +55,6 @@ export default async function ProfilePage() {
   }
 
   const totalSeeding = repos.reduce((sum, r) => sum + (r.seeding ?? 0), 0);
-  const publicCount = repos.filter(
-    (r) => (r.visibility?.type ?? "public") === "public",
-  ).length;
   const openPatches = repos.reduce(
     (sum, r) =>
       sum + (r.payloads["xyz.radicle.project"].meta.patches?.open ?? 0),
@@ -107,7 +104,7 @@ export default async function ProfilePage() {
         </section>
 
         {/* Stats */}
-        <section className="mx-auto mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
+        <section className="mx-auto mt-10 grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile
             label="Repositories"
             value={repos.length}
@@ -120,12 +117,6 @@ export default async function ProfilePage() {
             hint="total"
             icon={<Radio size={16} />}
             tone="info"
-          />
-          <StatTile
-            label="Public"
-            value={publicCount}
-            icon={<Globe2 size={16} />}
-            tone="violet"
           />
           {failures.length > 0 ? (
             <StatTile
