@@ -175,6 +175,29 @@ export async function fetchRepoCommits(
 }
 
 /**
+ * Single commit by OID (repo `meta.head` tip is often missing from the
+ * paginated `/commits?page=` list in radicle-httpd).
+ */
+export async function fetchRepoCommitById(
+  rid: string,
+  commitId: string,
+  baseUrl?: string,
+): Promise<Commit | null> {
+  const base = baseUrl ?? getRadicleHttpBase();
+  try {
+    const res = await fetch(
+      `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits/${encodeURIComponent(commitId)}`,
+      { cache: "no-store", headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { commit?: Commit };
+    return data.commit ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Aggregate commits across the given repos within the last `sinceDays` days.
  * Returns a flat list sorted newest-first, suitable for both an activity feed
  * and a contribution heatmap.
@@ -187,9 +210,24 @@ export async function fetchProfileActivity(
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
   const results = await Promise.all(
     repos.map(async (repo) => {
-      const commits = await fetchRepoCommits(repo.rid, sinceUnix, baseUrl);
+      const rid = repo.rid;
+      const commits = await fetchRepoCommits(rid, sinceUnix, baseUrl);
+      const headOid = repo.payloads["xyz.radicle.project"].meta.head;
+      const merged: Commit[] = [...commits];
+      if (headOid) {
+        const tip = await fetchRepoCommitById(rid, headOid, baseUrl);
+        const nc = tip ? commitWithNormalizedTime(tip) : null;
+        if (
+          nc &&
+          nc.committer.time >= sinceUnix &&
+          !merged.some((c) => c.id === nc.id)
+        ) {
+          merged.push(nc);
+        }
+      }
+      merged.sort((a, b) => b.committer.time - a.committer.time);
       const repoName = repo.payloads["xyz.radicle.project"].data.name;
-      return commits.map((commit) => ({ rid: repo.rid, repoName, commit }));
+      return merged.map((commit) => ({ rid, repoName, commit }));
     }),
   );
   const flat = results.flat().sort(

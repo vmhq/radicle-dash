@@ -76,7 +76,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 
 | Page | API call(s) |
 |------|-------------|
-| `/profile` | `GET /api/v1/repos/<rid>` per RID, in parallel; `GET /api/v1/repos/<rid>/commits?page=N&perPage=5` for the heatmap and recent-activity feed |
+| `/profile` | `GET /api/v1/repos/<rid>` per RID; `GET .../commits?page=N` for history **plus** `GET .../commits/<meta.head>` so the branch tip is included (paginated list can omit it in radicle-httpd) |
 | `/node` | `GET /api/v1/repos?show=all` and `?show=pinned` (so the toggle counts are accurate); `GET /api/v1/node` for the alias and NID |
 
 `show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned and commits in the last-year window are kept (timestamps are normalized if the API returns epoch milliseconds or numeric strings).

@@ -96,6 +96,14 @@ async function fetchRepoMeta(base, rid) {
   return res.json();
 }
 
+async function fetchCommitById(base, rid, oid) {
+  const url = `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits/${encodeURIComponent(oid)}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.commit ?? null;
+}
+
 async function main() {
   const envText = readFileSync(envPath, "utf8");
   const env = parseEnvLocal(envText);
@@ -117,7 +125,21 @@ async function main() {
     const meta = await fetchRepoMeta(base, rid);
     const name =
       meta?.payloads?.["xyz.radicle.project"]?.data?.name ?? rid.slice(0, 16);
-    const commits = await fetchCommits(base, rid, sinceUnix);
+    let commits = await fetchCommits(base, rid, sinceUnix);
+    const headOid = meta?.payloads?.["xyz.radicle.project"]?.meta?.head;
+    if (headOid) {
+      const tip = await fetchCommitById(base, rid, headOid);
+      const nc = tip ? commitWithNormalizedTime(tip) : null;
+      if (
+        nc &&
+        nc.committer.time >= sinceUnix &&
+        !commits.some((c) => c.id === nc.id)
+      ) {
+        commits = [...commits, nc].sort(
+          (a, b) => b.committer.time - a.committer.time,
+        );
+      }
+    }
     for (const commit of commits) {
       entries.push({ rid, repoName: name, commit });
     }
