@@ -8,8 +8,9 @@
  *   node scripts/export-activity-snapshot.mjs
  *   node scripts/export-activity-snapshot.mjs path/to/.env.local path/to/out.json
  *
- * Reads RADICLE_HTTP_BASE and RADICLE_REPO_IDS from the .env.local file (first
- * arg defaults to ./dashboard/.env.local). Output defaults to
+ * Reads RADICLE_HTTP_BASE, RADICLE_REPO_IDS, and optional
+ * RADICLE_ACTIVITY_HISTORY_DAYS / RADICLE_ACTIVITY_MAX_COMMIT_PAGES from the
+ * .env.local file (first arg defaults to ./dashboard/.env.local). Output defaults to
  * ./dashboard/data/activity-snapshot.json
  */
 
@@ -44,6 +45,12 @@ function parseEnvLocal(text) {
   return env;
 }
 
+function clampEnvInt(raw, fallback, min, max) {
+  const n = raw ? Number.parseInt(String(raw).trim(), 10) : fallback;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.max(n, min), max);
+}
+
 function normalizeCommitterTimeSeconds(t) {
   let n;
   if (typeof t === "number" && Number.isFinite(t)) {
@@ -65,7 +72,7 @@ function commitWithNormalizedTime(c) {
   return { ...c, committer: { ...c.committer, time: ts } };
 }
 
-async function fetchCommits(base, rid, sinceUnix, maxPages = 200) {
+async function fetchCommits(base, rid, sinceUnix, maxPages) {
   const all = [];
   const seen = new Set();
   for (let page = 1; page <= maxPages; page++) {
@@ -117,15 +124,26 @@ async function main() {
     process.exit(1);
   }
   const rids = rawIds.split(",").map((s) => s.trim()).filter(Boolean);
-  const sinceDays = 365;
-  const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
+  const historyDays = clampEnvInt(
+    env.RADICLE_ACTIVITY_HISTORY_DAYS,
+    1095,
+    30,
+    3650,
+  );
+  const maxCommitPages = clampEnvInt(
+    env.RADICLE_ACTIVITY_MAX_COMMIT_PAGES,
+    3000,
+    1,
+    20000,
+  );
+  const sinceUnix = Math.floor(Date.now() / 1000) - historyDays * 86400;
 
   const entries = [];
   for (const rid of rids) {
     const meta = await fetchRepoMeta(base, rid);
     const name =
       meta?.payloads?.["xyz.radicle.project"]?.data?.name ?? rid.slice(0, 16);
-    let commits = await fetchCommits(base, rid, sinceUnix);
+    let commits = await fetchCommits(base, rid, sinceUnix, maxCommitPages);
     const headOid = meta?.payloads?.["xyz.radicle.project"]?.meta?.head;
     if (headOid) {
       const tip = await fetchCommitById(base, rid, headOid);
@@ -160,12 +178,18 @@ async function main() {
     base,
     ridCount: rids.length,
     entryCount: unique.length,
+    historyDays,
+    maxCommitPages,
     entries: unique,
   };
 
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
-  console.log("Wrote", outPath, `(${unique.length} commit rows)`);
+  console.log(
+    "Wrote",
+    outPath,
+    `(${unique.length} commit rows, last ${historyDays}d, max ${maxCommitPages} pages/repo)`,
+  );
 }
 
 main().catch((e) => {

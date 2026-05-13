@@ -19,9 +19,13 @@ import { RepoExplorer } from "@/components/RepoExplorer";
 import { SiteHeader } from "@/components/SiteHeader";
 import { StatTile } from "@/components/StatTile";
 import {
+  getActivityHeatmapWeeks,
+  getActivityHistoryDays,
+  getActivityMaxCommitPages,
   getRadicleHttpBase,
   getRadicleHttpPublicLabel,
   getSiteMode,
+  formatActivityHistoryLabel,
 } from "@/lib/env";
 import {
   PROFILE_ALIAS,
@@ -46,9 +50,17 @@ export default async function ProfilePage() {
 
   const { repos, failures } = await fetchProfileRepos(rids, base);
   const snapshotActivity = await readActivitySnapshot();
+  const historyDays = getActivityHistoryDays();
+  const maxCommitPages = getActivityMaxCommitPages();
+  const heatmapWeeks = getActivityHeatmapWeeks(historyDays);
   const activity =
     snapshotActivity ??
-    (await fetchProfileActivity(repos, 365, base));
+    (await fetchProfileActivity(
+      repos,
+      historyDays,
+      base,
+      maxCommitPages,
+    ));
 
   // Map each rid to its most recent commit time (activity is already sorted desc).
   const lastCommitByRid: Record<string, number> = {};
@@ -175,13 +187,22 @@ export default async function ProfilePage() {
               <h2 className="text-sm font-medium uppercase tracking-[0.16em] text-muted">
                 Activity
               </h2>
-              <span className="text-xs text-muted">last 12 months</span>
+              <span className="text-xs text-muted">
+                last {formatActivityHistoryLabel(historyDays)}
+              </span>
             </header>
             <div className="mt-5 grid items-stretch gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                <ActivityHeatmap entries={activity} />
+                <ActivityHeatmap
+                  entries={activity}
+                  weeks={heatmapWeeks}
+                  historyDays={historyDays}
+                />
               </div>
-              <RecentActivity entries={activity} />
+              <RecentActivity
+                entries={activity}
+                historyDays={historyDays}
+              />
             </div>
           </section>
         )}

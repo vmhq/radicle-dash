@@ -142,7 +142,7 @@ export async function fetchRepoCommits(
   rid: string,
   sinceUnix: number,
   baseUrl?: string,
-  maxPages = 200,
+  maxPages = 3000,
 ): Promise<Commit[]> {
   const base = baseUrl ?? getRadicleHttpBase();
   const all: Commit[] = [];
@@ -200,18 +200,25 @@ export async function fetchRepoCommitById(
 /**
  * Aggregate commits across the given repos within the last `sinceDays` days.
  * Returns a flat list sorted newest-first, suitable for both an activity feed
- * and a contribution heatmap.
+ * and a contribution heatmap. Pass `maxCommitPages` to cap paginated fetches
+ * per repo (each page is at most 5 commits from radicle-httpd).
  */
 export async function fetchProfileActivity(
   repos: RadicleRepoPayload[],
-  sinceDays = 365,
+  sinceDays = 1095,
   baseUrl?: string,
+  maxCommitPages = 3000,
 ): Promise<ActivityEntry[]> {
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
   const results = await Promise.all(
     repos.map(async (repo) => {
       const rid = repo.rid;
-      const commits = await fetchRepoCommits(rid, sinceUnix, baseUrl);
+      const commits = await fetchRepoCommits(
+        rid,
+        sinceUnix,
+        baseUrl,
+        maxCommitPages,
+      );
       const headOid = repo.payloads["xyz.radicle.project"].meta.head;
       const merged: Commit[] = [...commits];
       if (headOid) {

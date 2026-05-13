@@ -1,14 +1,20 @@
 import { GitCommit } from "lucide-react";
 import type { ActivityEntry } from "@/lib/radicle";
 import { explorerRepoUrl } from "@/lib/radicle";
+import { formatActivityHistoryLabel } from "@/lib/env";
 import { relativeTime } from "@/lib/time";
 
 type RecentActivityProps = {
   entries: ActivityEntry[];
   limit?: number;
+  historyDays?: number;
 };
 
-export function RecentActivity({ entries, limit = 10 }: RecentActivityProps) {
+export function RecentActivity({
+  entries,
+  limit = 10,
+  historyDays = 365,
+}: RecentActivityProps) {
   if (entries.length === 0) return null;
   const items = entries.slice(0, limit);
   return (
@@ -22,7 +28,9 @@ export function RecentActivity({ entries, limit = 10 }: RecentActivityProps) {
             Latest commits
           </h3>
         </div>
-        <span className="text-xs text-muted">{entries.length} this year</span>
+        <span className="text-xs text-muted">
+          {entries.length} · last {formatActivityHistoryLabel(historyDays)}
+        </span>
       </header>
 
       <ul className="scroll-thin mt-4 min-h-0 flex-1 divide-y divide-border overflow-y-auto pr-1">

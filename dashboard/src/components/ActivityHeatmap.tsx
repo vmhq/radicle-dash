@@ -2,10 +2,13 @@ import {
   normalizeCommitterTimeSeconds,
   type ActivityEntry,
 } from "@/lib/radicle";
+import { formatActivityHistoryLabel } from "@/lib/env";
 
 type ActivityHeatmapProps = {
   entries: ActivityEntry[];
   weeks?: number;
+  /** Matches `RADICLE_ACTIVITY_HISTORY_DAYS` for subtitle copy. */
+  historyDays?: number;
 };
 
 const CELL = 11;
@@ -15,7 +18,11 @@ const MONTH_LABEL_HEIGHT = 14;
 
 const BUCKET_DEMO = [0, 1, 2, 4, 8] as const;
 
-export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
+export function ActivityHeatmap({
+  entries,
+  weeks = 53,
+  historyDays = 365,
+}: ActivityHeatmapProps) {
   const days = weeks * 7;
 
   // Anchor the rightmost column to the UTC week containing "today" (matches
@@ -75,6 +82,8 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
   const width = ROW_LABEL_WIDTH + weeks * (CELL + GAP);
   const height = MONTH_LABEL_HEIGHT + 7 * (CELL + GAP);
 
+  const period = formatActivityHistoryLabel(historyDays);
+
   return (
     <section className="flex h-[224px] flex-col rounded-2xl border border-border bg-surface p-6 card-ring">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
@@ -83,8 +92,8 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
             Contribution heatmap
           </p>
           <h3 className="mt-1 text-base font-semibold tracking-tight">
-            {total.toLocaleString()} commit{total === 1 ? "" : "s"} in the last
-            year
+            {total.toLocaleString()} commit{total === 1 ? "" : "s"} · last{" "}
+            {period}
           </h3>
         </div>
         <ScaleLegend />
@@ -96,7 +105,7 @@ export function ActivityHeatmap({ entries, weeks = 53 }: ActivityHeatmapProps) {
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${total} commits over the past ${weeks} weeks`}
+          aria-label={`${total} commits over the past ${period}`}
           style={{ display: "block" }}
         >
           {monthLabels.map((m, i) => (

@@ -61,6 +61,9 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | `RADICLE_PROFILE_LINKS` | `label:url, label:url` — chips in the hero (e.g. `site:https://you.dev, email:mailto:you@example.com`) |
 | `RADICLE_PROFILE_AVATAR_URL` | Path under `/public` (`/me.jpg`) or full URL. Falls back to a generative gradient + initials. |
 | `RADICLE_REPO_IDS` | Comma-separated RIDs to feature on `/profile`. If unset, the page renders an empty state. |
+| `RADICLE_ACTIVITY_HISTORY_DAYS` | How far back `/profile` pulls commits (default **1095** ≈ 3 years; clamped 30–3650). |
+| `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` | Max `?page=` fetches per repo at 5 commits/page (default **3000** ≈ 15k commits; clamped 1–20000). |
+| `RADICLE_ACTIVITY_SNAPSHOT_PATH` | Optional JSON file for heatmap/feed (see root README). |
 
 ### Misc
 
@@ -79,7 +82,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | `/profile` | `GET /api/v1/repos/<rid>` per RID; `GET .../commits?page=N` for history **plus** `GET .../commits/<meta.head>` so the branch tip is included (paginated list can omit it in radicle-httpd) |
 | `/node` | `GET /api/v1/repos?show=all` and `?show=pinned` (so the toggle counts are accurate); `GET /api/v1/node` for the alias and NID |
 
-`show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned and commits in the last-year window are kept (timestamps are normalized if the API returns epoch milliseconds or numeric strings).
+`show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned (up to `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`) and commits inside `RADICLE_ACTIVITY_HISTORY_DAYS` are kept (timestamps are normalized if the API returns epoch milliseconds or numeric strings).
 
 Every fetch uses `cache: "no-store"` and the pages are `force-dynamic`, so refreshing always shows the current state of your node.
 
@@ -107,7 +110,7 @@ src/
     ShowToggle.tsx        All / Pinned segmented control
     ProfileBio.tsx        bio + social-link chips
     RecentActivity.tsx    latest commits across profile RIDs
-    ActivityHeatmap.tsx   53×7 contribution grid
+    ActivityHeatmap.tsx   contribution grid (week count follows `RADICLE_ACTIVITY_HISTORY_DAYS`)
     Quickstart.tsx        copy-able code blocks
     Faq.tsx               accordion
     CopyButton.tsx        copy-to-clipboard with feedback

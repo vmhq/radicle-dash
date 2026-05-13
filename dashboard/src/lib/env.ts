@@ -58,3 +58,41 @@ export function getSiteMode(): SiteMode {
   const raw = process.env.SITE_MODE ?? process.env.NEXT_PUBLIC_SITE_MODE;
   return raw === "personal" ? "personal" : "marketing";
 }
+
+/**
+ * How far back profile activity (heatmap + feed) pulls commits from
+ * `radicle-httpd`, in calendar days. Override with `RADICLE_ACTIVITY_HISTORY_DAYS`.
+ * Clamped to 30–3650 (~10y). Default 1095 (~3y).
+ */
+export function getActivityHistoryDays(): number {
+  const raw = process.env.RADICLE_ACTIVITY_HISTORY_DAYS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 1095;
+  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 1095;
+  return Math.min(Math.max(n, 30), 3650);
+}
+
+/**
+ * Max `page=` requests per repo for `/commits` (5 rows per page). Override
+ * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 3000.
+ */
+export function getActivityMaxCommitPages(): number {
+  const raw = process.env.RADICLE_ACTIVITY_MAX_COMMIT_PAGES?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 3000;
+  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 3000;
+  return Math.min(Math.max(n, 1), 20000);
+}
+
+/** Heatmap column count from history window (+1 week slack), capped for layout. */
+export function getActivityHeatmapWeeks(historyDays: number): number {
+  const w = Math.ceil(historyDays / 7) + 1;
+  return Math.min(Math.max(w, 8), 530);
+}
+
+/** Human label for activity window (heatmap header, etc.). */
+export function formatActivityHistoryLabel(days: number): string {
+  if (days >= 365) {
+    const y = Math.round(days / 365);
+    return `${y} year${y === 1 ? "" : "s"}`;
+  }
+  return `${days} days`;
+}

@@ -100,7 +100,7 @@ Optional workaround:
    npm run export-activity
    ```
 
-   This reads `RADICLE_HTTP_BASE` and `RADICLE_REPO_IDS` from **`dashboard/.env.local`**, calls your local HTTP API, and writes **`dashboard/data/activity-snapshot.json`** (gitignored).
+   This reads `RADICLE_HTTP_BASE`, `RADICLE_REPO_IDS`, and optional `RADICLE_ACTIVITY_HISTORY_DAYS` / `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` (same as live `/profile`) from **`dashboard/.env.local`**, calls your local HTTP API, and writes **`dashboard/data/activity-snapshot.json`** (gitignored).
 
 2. Copy that file to **M3** (same path under your clone: `dashboard/data/activity-snapshot.json`), e.g. `scp` or AirDrop.
 
