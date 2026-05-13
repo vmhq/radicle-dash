@@ -105,29 +105,74 @@ export type ActivityEntry = {
  * `radicle-httpd` returns committer time as Unix seconds; some payloads use ms.
  * Values ≥ 1e12 are treated as epoch milliseconds. Hand-written snapshots may
  * use ISO-8601 strings for `committer.time`; those are parsed as UTC.
+ *
+ * Some APIs stringify epochs with a leading `+`, `_` / `,` grouping, or wrap
+ * seconds in `{ seconds: … }`; those are normalized here so the heatmap does
+ * not drop every row.
  */
 export function normalizeCommitterTimeSeconds(t: unknown): number | null {
+  let v = unwrapCommitterTimeValue(t);
+  if (typeof v === "bigint") {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    v = n;
+  }
   let n: number;
-  if (typeof t === "number" && Number.isFinite(t)) {
-    n = t;
-  } else if (typeof t === "string") {
-    const s = t.trim();
-    if (s === "") return null;
-    // Prefer ISO / human dates over treating "2024-05-10..." as a huge integer.
-    const hasNonNumericEpochChars = /[^\d.]/.test(s);
-    if (hasNonNumericEpochChars) {
-      const ms = Date.parse(s);
-      if (!Number.isFinite(ms) || ms <= 0) return null;
-      return Math.floor(ms / 1000);
-    }
-    const p = Number(s);
-    if (!Number.isFinite(p) || p <= 0) return null;
-    n = p;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    n = v;
+  } else if (typeof v === "string") {
+    const parsed = parseStringCommitterTime(v);
+    if (parsed === null) return null;
+    return parsed;
   } else {
     return null;
   }
   if (n <= 0) return null;
   return n >= 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
+/** Single-level unwrap for protobuf-style or BSON-style JSON. */
+function unwrapCommitterTimeValue(t: unknown): unknown {
+  if (t === null || t === undefined) return t;
+  if (typeof t !== "object" || Array.isArray(t)) return t;
+  const o = t as Record<string, unknown>;
+  if ("seconds" in o && (typeof o.seconds === "number" || typeof o.seconds === "string")) {
+    return o.seconds;
+  }
+  if ("$date" in o) return o.$date;
+  return t;
+}
+
+/**
+ * Parse string committer time to Unix seconds. Prefer numeric epochs (including
+ * optional `+`, `_`, `,`) when the string does not look like ISO/RFC dates.
+ */
+function parseStringCommitterTime(raw: string): number | null {
+  let s = raw.trim();
+  if (s === "") return null;
+  if (s.startsWith("+") && /^\+[\d_,.\s]/.test(s)) s = s.slice(1).trim();
+
+  const looksIsoOrRfc =
+    s.includes("T") ||
+    /^\d{4}-\d{2}-\d{2}/.test(s) ||
+    /^[A-Za-z]{3},\s\d{1,2}\s[A-Za-z]{3}/.test(s);
+
+  if (looksIsoOrRfc) {
+    const ms = Date.parse(s);
+    if (Number.isFinite(ms) && ms > 0) return Math.floor(ms / 1000);
+  }
+
+  const compact = s.replace(/[,_\s]/g, "");
+  const epochNumeric = /^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(compact);
+  if (epochNumeric) {
+    const p = Number(compact);
+    if (!Number.isFinite(p) || p <= 0) return null;
+    return p >= 1e12 ? Math.floor(p / 1000) : Math.floor(p);
+  }
+
+  const ms = Date.parse(s);
+  if (Number.isFinite(ms) && ms > 0) return Math.floor(ms / 1000);
+  return null;
 }
 
 function commitWithNormalizedTime(c: Commit): Commit | null {

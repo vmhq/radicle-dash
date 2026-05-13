@@ -61,22 +61,58 @@ function clampEnvIntAllowZero(raw, fallback, max) {
   return Math.min(n, max);
 }
 
-function normalizeCommitterTimeSeconds(t) {
-  let n;
-  if (typeof t === "number" && Number.isFinite(t)) {
-    n = t;
-  } else if (typeof t === "string") {
-    const s = t.trim();
-    if (s === "") return null;
-    const hasNonNumericEpochChars = /[^\d.]/.test(s);
-    if (hasNonNumericEpochChars) {
-      const ms = Date.parse(s);
-      if (!Number.isFinite(ms) || ms <= 0) return null;
-      return Math.floor(ms / 1000);
-    }
-    const p = Number(s);
+function unwrapCommitterTimeValue(t) {
+  if (t === null || t === undefined) return t;
+  if (typeof t !== "object" || Array.isArray(t)) return t;
+  if (typeof t.seconds === "number" || typeof t.seconds === "string") {
+    return t.seconds;
+  }
+  if ("$date" in t) return t.$date;
+  return t;
+}
+
+function parseStringCommitterTime(raw) {
+  let s = raw.trim();
+  if (s === "") return null;
+  if (s.startsWith("+") && /^\+[\d_,.\s]/.test(s)) s = s.slice(1).trim();
+
+  const looksIsoOrRfc =
+    s.includes("T") ||
+    /^\d{4}-\d{2}-\d{2}/.test(s) ||
+    /^[A-Za-z]{3},\s\d{1,2}\s[A-Za-z]{3}/.test(s);
+
+  if (looksIsoOrRfc) {
+    const ms = Date.parse(s);
+    if (Number.isFinite(ms) && ms > 0) return Math.floor(ms / 1000);
+  }
+
+  const compact = s.replace(/[,_\s]/g, "");
+  const epochNumeric = /^-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(compact);
+  if (epochNumeric) {
+    const p = Number(compact);
     if (!Number.isFinite(p) || p <= 0) return null;
-    n = p;
+    return p >= 1e12 ? Math.floor(p / 1000) : Math.floor(p);
+  }
+
+  const ms = Date.parse(s);
+  if (Number.isFinite(ms) && ms > 0) return Math.floor(ms / 1000);
+  return null;
+}
+
+function normalizeCommitterTimeSeconds(t) {
+  let v = unwrapCommitterTimeValue(t);
+  if (typeof v === "bigint") {
+    const bn = Number(v);
+    if (!Number.isFinite(bn) || bn <= 0) return null;
+    v = bn;
+  }
+  let n;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    n = v;
+  } else if (typeof v === "string") {
+    const parsed = parseStringCommitterTime(v);
+    if (parsed === null) return null;
+    return parsed;
   } else {
     return null;
   }

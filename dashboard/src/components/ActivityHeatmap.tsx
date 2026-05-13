@@ -37,7 +37,15 @@ export function ActivityHeatmap({
   const counts = new Map<string, number>();
   for (const e of entries) {
     const raw = e.commit.committer?.time;
-    const t = normalizeCommitterTimeSeconds(raw);
+    let t = normalizeCommitterTimeSeconds(raw);
+    if (
+      (t == null || !Number.isFinite(t)) &&
+      typeof raw === "number" &&
+      Number.isFinite(raw) &&
+      raw > 0
+    ) {
+      t = raw >= 1e12 ? Math.floor(raw / 1000) : Math.floor(raw);
+    }
     if (t == null || !Number.isFinite(t)) continue;
     const d = startOfUtcDay(new Date(t * 1000));
     if (d < startDate || d > endDate) continue;
