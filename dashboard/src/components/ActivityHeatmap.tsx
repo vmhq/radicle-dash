@@ -1,10 +1,18 @@
 import { heatmapCommitUnixSeconds, type ActivityEntry } from "@/lib/radicle";
 import { formatActivityHistoryLabel } from "@/lib/env";
+import { HeatmapScroller } from "@/components/HeatmapScroller";
 
 type ActivityHeatmapProps = {
   entries: ActivityEntry[];
+  /**
+   * Visible heatmap width in weeks (typically `getActivityHeatmapWeeks(...)`).
+   * Default 53 = GitHub-style 1-year grid.
+   */
   weeks?: number;
-  /** Matches `RADICLE_ACTIVITY_HISTORY_DAYS` for subtitle copy. */
+  /**
+   * Activity *fetch* window in days (kept for prop-API compatibility with
+   * `/profile`; the heatmap visible span is driven by `weeks`).
+   */
   historyDays?: number;
 };
 
@@ -18,60 +26,34 @@ const BUCKET_DEMO = [0, 1, 2, 4, 8] as const;
 export function ActivityHeatmap({
   entries,
   weeks = 53,
-  historyDays = 365,
 }: ActivityHeatmapProps) {
   const msDay = 86400000;
   const safeWeeks =
     Number.isFinite(weeks) && weeks > 0 ? Math.min(Math.max(weeks, 1), 530) : 53;
-  const histCap =
-    Number.isFinite(historyDays) && historyDays > 0
-      ? Math.min(Math.max(historyDays, 30), 3650)
-      : 1095;
 
   const today = startOfUtcDay(new Date());
-  const weekEndSunday = new Date(today);
-  weekEndSunday.setUTCDate(
-    weekEndSunday.getUTCDate() + (6 - weekEndSunday.getUTCDay()),
-  );
 
-  let minEntryDay: Date | null = null;
   let maxEntryDay: Date | null = null;
   for (const e of entries) {
     const t = heatmapCommitUnixSeconds(e.commit);
     if (t == null || !Number.isFinite(t)) continue;
     const d = startOfUtcDay(new Date(t * 1000));
-    if (!minEntryDay || d < minEntryDay) minEntryDay = d;
     if (!maxEntryDay || d > maxEntryDay) maxEntryDay = d;
   }
 
-  /** Right edge of the heatmap (UTC day): week-aligned Sunday, or latest commit if later. */
-  let rangeEnd = new Date(weekEndSunday);
+  /**
+   * Anchor the right edge to **today** so today's commits sit on the rightmost
+   * column (not pushed forward to the upcoming Saturday with empty cells after).
+   * If the latest commit is somehow newer than `today` (clock skew), use it.
+   */
+  let rangeEnd = new Date(today);
   if (maxEntryDay && maxEntryDay > rangeEnd) rangeEnd = maxEntryDay;
 
-  const envMinSpan = Math.max(safeWeeks * 7, histCap + 1);
   const maxGridDays = 530 * 7;
+  const visibleDays = Math.min(Math.max(safeWeeks * 7, 7), maxGridDays);
 
-  let rangeStart: Date;
-  if (minEntryDay) {
-    const dataSpan =
-      Math.floor((rangeEnd.getTime() - minEntryDay.getTime()) / msDay) + 1;
-    let spanDays = Math.max(envMinSpan, dataSpan);
-    spanDays = Math.min(spanDays, maxGridDays);
-    rangeStart = new Date(rangeEnd);
-    rangeStart.setUTCDate(rangeStart.getUTCDate() - (spanDays - 1));
-    if (minEntryDay < rangeStart) rangeStart = new Date(minEntryDay);
-    if (
-      Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / msDay) + 1 >
-      maxGridDays
-    ) {
-      rangeStart = new Date(rangeEnd);
-      rangeStart.setUTCDate(rangeStart.getUTCDate() - (maxGridDays - 1));
-    }
-  } else {
-    const spanDays = Math.min(Math.max(envMinSpan, 1), maxGridDays);
-    rangeStart = new Date(rangeEnd);
-    rangeStart.setUTCDate(rangeStart.getUTCDate() - (spanDays - 1));
-  }
+  const rangeStart = new Date(rangeEnd);
+  rangeStart.setUTCDate(rangeStart.getUTCDate() - (visibleDays - 1));
 
   const days =
     Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / msDay) + 1;
@@ -123,7 +105,11 @@ export function ActivityHeatmap({
   const width = ROW_LABEL_WIDTH + gridWeeks * (CELL + GAP);
   const height = MONTH_LABEL_HEIGHT + 7 * (CELL + GAP);
 
-  const period = formatActivityHistoryLabel(histCap);
+  const visibleWeeks = Math.max(1, Math.round(visibleDays / 7));
+  const periodLabel =
+    visibleWeeks >= 52
+      ? formatActivityHistoryLabel(visibleWeeks * 7)
+      : `${visibleWeeks} week${visibleWeeks === 1 ? "" : "s"}`;
 
   return (
     <section className="flex h-[224px] flex-col rounded-2xl border border-border bg-surface p-6 card-ring">
@@ -134,19 +120,19 @@ export function ActivityHeatmap({
           </p>
           <h3 className="mt-1 text-base font-semibold tracking-tight">
             {total.toLocaleString()} commit{total === 1 ? "" : "s"} · last{" "}
-            {period}
+            {periodLabel}
           </h3>
         </div>
         <ScaleLegend />
       </header>
 
-      <div className="mt-5 overflow-x-auto">
+      <HeatmapScroller>
         <svg
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${total} commits over the past ${period}`}
+          aria-label={`${total} commits over the past ${periodLabel}`}
           style={{ display: "block" }}
         >
           {monthLabels.map((m, i) => (
@@ -192,7 +178,7 @@ export function ActivityHeatmap({
             )),
           )}
         </svg>
-      </div>
+      </HeatmapScroller>
     </section>
   );
 }

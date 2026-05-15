@@ -82,11 +82,24 @@ export function getActivityMaxCommitPages(): number {
   return Math.min(Math.max(n, 1), 20000);
 }
 
-/** Heatmap column count from history window (+1 week slack), capped for layout. */
+/**
+ * Heatmap column count. Default is **53 weeks** (GitHub-style 1y view) so the
+ * grid fits a typical viewport and the most recent commits are visible without
+ * horizontal scrolling. Activity fetch (`RADICLE_ACTIVITY_HISTORY_DAYS`) can be
+ * much larger and still drive the feed; the heatmap just shows the recent
+ * window. Override with `RADICLE_ACTIVITY_HEATMAP_WEEKS` (clamped 8–530).
+ */
 export function getActivityHeatmapWeeks(historyDays: number): number {
+  const overrideRaw = process.env.RADICLE_ACTIVITY_HEATMAP_WEEKS?.trim();
+  if (overrideRaw) {
+    const parsed = Number.parseInt(overrideRaw, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.min(Math.max(parsed, 8), 530);
+    }
+  }
   const hd =
     Number.isFinite(historyDays) && historyDays > 0 ? historyDays : 1095;
-  const w = Math.ceil(hd / 7) + 1;
+  const w = Math.min(53, Math.ceil(hd / 7) + 1);
   return Math.min(Math.max(w, 8), 530);
 }
 
