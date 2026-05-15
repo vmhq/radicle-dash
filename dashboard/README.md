@@ -82,7 +82,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | Page | API call(s) |
 |------|-------------|
 | `/profile` | `GET .../repos/<rid>`; paginated `GET .../commits?page=`; `GET .../commits/<meta.head>`; optional **parent-walk** via repeated `GET .../commits/<oid>` following `parents` (bounded by env) |
-| `/node` | `GET /api/v1/repos?show=all` and `?show=pinned` (so the toggle counts are accurate); `GET /api/v1/node` for the alias and NID |
+| `/node` | `GET /api/v1/repos?show=all` and `?show=pinned`; **All** merges in any `RADICLE_REPO_IDS` RIDs missing from `show=all` but returned by `GET …/repos/<rid>`; `GET /api/v1/node` for alias and NID |
 
 `show=pinned` follows **`web.pinned.repositories`** in **`$RAD_HOME/config.json`** (Radicle home is usually `~/.radicle`). There is no `rad pin` command — edit that JSON list to curate pins, then restart `radicle-httpd` if your build only reloads config at startup. The default **All** tab uses `show=all`. `radicle-httpd` also caps `perPage` at 5 and ignores `since=`, so commit pagination is done client-side: every page is scanned (up to `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`) and commits inside `RADICLE_ACTIVITY_HISTORY_DAYS` are kept. **Parent walk** expands `parents` from every commit already in that paginated set (no extra HTTP), then follows unknown parents with `GET .../commits/<oid>` up to `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS`, and enqueues `meta.head` if it was not reached yet — so merge second parents and gaps vs the paginated slice are filled when the API exposes parent IDs. Timestamps are normalized if the API returns epoch milliseconds or numeric strings.
 

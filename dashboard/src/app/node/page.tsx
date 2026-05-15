@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   FolderGit2,
-  Globe2,
   Network,
   Radio,
   Server,
@@ -19,10 +18,43 @@ import {
   getRadicleHttpPublicLabel,
   isRadicleHttpBaseLoopback,
 } from "@/lib/env";
-import { fetchNodeInfo, fetchNodeRepos } from "@/lib/radicle";
+import {
+  fetchNodeInfo,
+  fetchNodeRepos,
+  fetchRepo,
+  type RadicleRepoPayload,
+} from "@/lib/radicle";
+import { getProfileRepoIds } from "@/lib/profileRepos";
 import { shortenId } from "@/lib/visual";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * `GET /api/v1/repos?show=all` sometimes omits a RID that still answers
+ * `GET /api/v1/repos/<rid>` (replication / inventory quirks). Merge in every
+ * `RADICLE_REPO_IDS` entry so /node “All” matches the curated profile list.
+ */
+async function mergeInventoryWithProfileRids(
+  base: string,
+  inventory: RadicleRepoPayload[],
+  profileRids: string[],
+): Promise<RadicleRepoPayload[]> {
+  const byRid = new Map(inventory.map((r) => [r.rid, r]));
+  const missing = profileRids.filter((rid) => rid.trim() && !byRid.has(rid));
+  if (missing.length > 0) {
+    const results = await Promise.all(
+      missing.map((rid) => fetchRepo(rid.trim(), base)),
+    );
+    for (const r of results) {
+      if (r.ok) byRid.set(r.repo.rid, r.repo);
+    }
+  }
+  return [...byRid.values()].sort((a, b) =>
+    a.payloads["xyz.radicle.project"].data.name.localeCompare(
+      b.payloads["xyz.radicle.project"].data.name,
+    ),
+  );
+}
 
 type NodePageProps = {
   searchParams: Promise<{ show?: string }>;
@@ -40,14 +72,17 @@ export default async function NodePage({ searchParams }: NodePageProps) {
     fetchNodeRepos(base, "pinned"),
   ]);
 
-  const list = show === "pinned" ? pinnedList : allList;
+  const profileRids = getProfileRepoIds();
+  const mergedAllRepos = allList.error
+    ? allList.repos
+    : await mergeInventoryWithProfileRids(base, allList.repos, profileRids);
+
+  const list = show === "pinned" ? pinnedList : { ...allList, repos: mergedAllRepos };
   const repos = list.repos;
-  const totalCount = allList.repos.length;
+  const totalCount = mergedAllRepos.length;
   const pinnedCount = pinnedList.repos.length;
+  const inventoryOnlyCount = allList.repos.length;
   const totalSeeding = repos.reduce((sum, r) => sum + (r.seeding ?? 0), 0);
-  const publicCount = repos.filter(
-    (r) => (r.visibility?.type ?? "public") === "public",
-  ).length;
   const delegateSet = new Set<string>();
   for (const r of repos) for (const d of r.delegates ?? []) delegateSet.add(d.id);
   const alias = info?.config?.alias ?? "node";
@@ -100,7 +135,7 @@ export default async function NodePage({ searchParams }: NodePageProps) {
           )}
         </section>
 
-        <section className="mx-auto mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
+        <section className="mx-auto mt-10 grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-3">
           <StatTile
             label="Repositories"
             value={repos.length}
@@ -115,12 +150,6 @@ export default async function NodePage({ searchParams }: NodePageProps) {
             tone="info"
           />
           <StatTile
-            label="Public"
-            value={publicCount}
-            icon={<Globe2 size={16} />}
-            tone="violet"
-          />
-          <StatTile
             label="Delegates"
             value={delegateSet.size}
             hint="distinct"
@@ -128,6 +157,28 @@ export default async function NodePage({ searchParams }: NodePageProps) {
             tone="success"
           />
         </section>
+
+        {!allList.error &&
+          show === "all" &&
+          profileRids.length > 0 &&
+          mergedAllRepos.length > inventoryOnlyCount && (
+            <p className="mx-auto mt-3 max-w-3xl text-xs text-muted">
+              Included{" "}
+              <span className="tabular-nums text-muted-strong">
+                {mergedAllRepos.length - inventoryOnlyCount}
+              </span>{" "}
+              repo
+              {mergedAllRepos.length - inventoryOnlyCount === 1 ? "" : "s"} from{" "}
+              <code className="rounded bg-black/30 px-1 font-mono text-[11px]">
+                RADICLE_REPO_IDS
+              </code>{" "}
+              not returned by{" "}
+              <code className="rounded bg-black/30 px-1 font-mono text-[11px]">
+                ?show=all
+              </code>{" "}
+              but reachable on this httpd.
+            </p>
+          )}
 
         {list.error && (
           <div
