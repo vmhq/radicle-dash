@@ -171,6 +171,9 @@ function unwrapCommitterTimeValue(t: unknown): unknown {
   if ("sec" in o && (typeof o.sec === "number" || typeof o.sec === "string")) {
     return o.sec;
   }
+  if ("secs" in o && (typeof o.secs === "number" || typeof o.secs === "string")) {
+    return o.secs;
+  }
   if ("time" in o && (typeof o.time === "number" || typeof o.time === "string")) {
     return o.time;
   }
@@ -209,16 +212,37 @@ function parseStringCommitterTime(raw: string): number | null {
   return null;
 }
 
+const COMMITTER_TIME_KEYS = [
+  "time",
+  "timestamp",
+  "date",
+  "unix",
+  "seconds",
+  "secs",
+] as const;
+
 function rawCommitterTime(c: Commit): unknown {
   const ct = c.committer as Record<string, unknown> | undefined | null;
   if (ct) {
-    const v =
-      ct.time ?? ct.timestamp ?? ct.date ?? ct.unix ?? ct.seconds;
-    if (v !== undefined && v !== null) return v;
+    for (const key of COMMITTER_TIME_KEYS) {
+      const v = ct[key];
+      if (v !== undefined && v !== null) return v;
+    }
   }
   const au = c.author as Record<string, unknown> | undefined | null;
   if (au) {
     const v = au.time ?? au.timestamp ?? au.date;
+    if (v !== undefined && v !== null) return v;
+  }
+  const root = c as Record<string, unknown>;
+  for (const key of [
+    "committedAt",
+    "authoredAt",
+    "committed",
+    "authored",
+    "timestamp",
+  ] as const) {
+    const v = root[key];
     if (v !== undefined && v !== null) return v;
   }
   return undefined;
@@ -227,6 +251,24 @@ function rawCommitterTime(c: Commit): unknown {
 /** Heatmap / UI: resolve committer (or author) time the same way as ingestion. */
 export function normalizeCommitCalendarTime(c: Commit): number | null {
   return normalizeCommitterTimeSeconds(rawCommitterTime(c));
+}
+
+/**
+ * Resolve Unix seconds for heatmap bucketing: try each known committer field,
+ * then full calendar fallback (author, unwrap, etc.).
+ */
+export function heatmapCommitUnixSeconds(c: Commit): number | null {
+  const com = c.committer as Record<string, unknown> | undefined | null;
+  if (com) {
+    for (const key of COMMITTER_TIME_KEYS) {
+      const v = com[key];
+      if (v !== undefined && v !== null) {
+        const n = normalizeCommitterTimeSeconds(v);
+        if (n !== null) return n;
+      }
+    }
+  }
+  return normalizeCommitCalendarTime(c);
 }
 
 function commitWithNormalizedTime(c: Commit): Commit | null {
@@ -241,6 +283,7 @@ function commitWithNormalizedTime(c: Commit): Commit | null {
   const cr = c as Record<string, unknown>;
   const id =
     (typeof c.id === "string" && c.id.trim()) ||
+    (typeof cr.oid === "string" && String(cr.oid).trim()) ||
     (typeof cr.sha === "string" && String(cr.sha).trim()) ||
     "";
   if (!id) return null;
@@ -273,7 +316,9 @@ function commitFromCommitDetailJson(data: unknown): Commit | null {
   const c =
     raw && typeof raw === "object"
       ? (raw as Commit)
-      : typeof o.id === "string" && o.committer && typeof o.committer === "object"
+      : (typeof o.id === "string" || typeof o.oid === "string") &&
+          o.committer &&
+          typeof o.committer === "object"
         ? (o as unknown as Commit)
         : null;
   return c;

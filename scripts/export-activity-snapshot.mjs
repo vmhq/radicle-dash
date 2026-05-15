@@ -8,11 +8,19 @@
  *   node scripts/export-activity-snapshot.mjs
  *   node scripts/export-activity-snapshot.mjs path/to/.env.local path/to/out.json
  *
- * Reads RADICLE_HTTP_BASE, RADICLE_REPO_IDS, and optional
+ * Reads RADICLE_HTTP_BASE and a repo list (see below), plus optional
  * RADICLE_ACTIVITY_HISTORY_DAYS / RADICLE_ACTIVITY_MAX_COMMIT_PAGES /
- * RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS from the
- * .env.local file (first arg defaults to ./dashboard/.env.local). Output defaults to
+ * RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS from the .env.local file (first arg
+ * defaults to ./dashboard/.env.local). Output defaults to
  * ./dashboard/data/activity-snapshot.json
+ *
+ * **Which repos are exported**
+ * - If `RADICLE_ACTIVITY_EXPORT_REPO_IDS` is set, that list is used (export-only).
+ * - Otherwise `RADICLE_REPO_IDS` is used (same as `/profile`).
+ * - Either value may be a single token `all` or `*` → every RID from
+ *   `GET /api/v1/repos?show=all` on the node (add new projects without editing
+ *   the comma-separated list each time). `/profile` still uses only
+ *   `RADICLE_REPO_IDS`; this does not change the site.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -91,6 +99,9 @@ function unwrapCommitterTimeValue(t) {
   if ("sec" in t && (typeof t.sec === "number" || typeof t.sec === "string")) {
     return t.sec;
   }
+  if ("secs" in t && (typeof t.secs === "number" || typeof t.secs === "string")) {
+    return t.secs;
+  }
   if ("time" in t && (typeof t.time === "number" || typeof t.time === "string")) {
     return t.time;
   }
@@ -159,12 +170,28 @@ function normalizeCommitterTimeSeconds(t) {
 function rawCommitterTime(c) {
   const ct = c.committer;
   if (ct && typeof ct === "object") {
-    const v = ct.time ?? ct.timestamp ?? ct.date ?? ct.unix ?? ct.seconds;
+    const v =
+      ct.time ??
+      ct.timestamp ??
+      ct.date ??
+      ct.unix ??
+      ct.seconds ??
+      ct.secs;
     if (v !== undefined && v !== null) return v;
   }
   const au = c.author;
   if (au && typeof au === "object") {
     const v = au.time ?? au.timestamp ?? au.date;
+    if (v !== undefined && v !== null) return v;
+  }
+  for (const key of [
+    "committedAt",
+    "authoredAt",
+    "committed",
+    "authored",
+    "timestamp",
+  ]) {
+    const v = c[key];
     if (v !== undefined && v !== null) return v;
   }
   return undefined;
@@ -181,6 +208,7 @@ function commitWithNormalizedTime(c) {
       : { name: "", email: "", time: ts });
   const id =
     (typeof c.id === "string" && c.id.trim()) ||
+    (typeof c.oid === "string" && String(c.oid).trim()) ||
     (typeof c.sha === "string" && String(c.sha).trim()) ||
     "";
   if (!id) return null;
@@ -223,6 +251,71 @@ async function fetchRepoMeta(base, rid) {
   return res.json();
 }
 
+/** RIDs replicated on this node (`show=all`, same as /node “All”). */
+async function fetchAllRepoRids(base) {
+  const res = await fetch(`${base}/api/v1/repos?show=all`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) return [];
+  const repos = await res.json();
+  if (!Array.isArray(repos)) return [];
+  return repos
+    .map((r) => (r && typeof r === "object" ? r.rid : null))
+    .filter((id) => typeof id === "string" && id.length > 0);
+}
+
+/**
+ * Repo list for this export:
+ * - If `RADICLE_ACTIVITY_EXPORT_REPO_IDS` is set, use it (does not affect `/profile`).
+ * - Else require `RADICLE_REPO_IDS` (same list as `/profile`).
+ * - `all` / `*` is allowed **only** in `RADICLE_ACTIVITY_EXPORT_REPO_IDS` (full node
+ *   inventory via `GET /api/v1/repos?show=all`). Do not set `RADICLE_REPO_IDS=all`.
+ */
+async function resolveExportRids(base, env) {
+  const rawExport = env.RADICLE_ACTIVITY_EXPORT_REPO_IDS?.trim();
+  const rawProfile = env.RADICLE_REPO_IDS?.trim();
+
+  const split = (raw) => raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const isAllToken = (raw) => {
+    const t = split(raw);
+    return t.length === 1 && /^(all|\*)$/i.test(t[0]);
+  };
+
+  if (rawExport) {
+    if (isAllToken(rawExport)) {
+      const rids = await fetchAllRepoRids(base);
+      if (!rids.length) {
+        console.error(
+          "RADICLE_ACTIVITY_EXPORT_REPO_IDS=all but GET /api/v1/repos?show=all returned no repos.",
+        );
+        process.exit(1);
+      }
+      console.log(
+        `Using full node inventory: ${rids.length} repo(s) (RADICLE_ACTIVITY_EXPORT_REPO_IDS=all).`,
+      );
+      return rids;
+    }
+    return split(rawExport);
+  }
+
+  if (!rawProfile) {
+    console.error(
+      "Set RADICLE_REPO_IDS or RADICLE_ACTIVITY_EXPORT_REPO_IDS in",
+      envPath,
+    );
+    process.exit(1);
+  }
+
+  if (isAllToken(rawProfile)) {
+    console.error(
+      'RADICLE_REPO_IDS cannot be "all" (that would break /profile). Use RADICLE_ACTIVITY_EXPORT_REPO_IDS=all for a full-node export.',
+    );
+    process.exit(1);
+  }
+
+  return split(rawProfile);
+}
+
 function normalizeParentIds(parents) {
   if (!Array.isArray(parents)) return [];
   const out = [];
@@ -239,7 +332,11 @@ function normalizeParentIds(parents) {
 function commitFromDetailJson(data) {
   if (!data || typeof data !== "object") return null;
   if (data.commit && typeof data.commit === "object") return data.commit;
-  if (typeof data.id === "string" && data.committer && typeof data.committer === "object") {
+  if (
+    (typeof data.id === "string" || typeof data.oid === "string") &&
+    data.committer &&
+    typeof data.committer === "object"
+  ) {
     return data;
   }
   return null;
@@ -348,12 +445,22 @@ async function main() {
     /\/$/,
     "",
   );
-  const rawIds = env.RADICLE_REPO_IDS?.trim();
-  if (!rawIds) {
-    console.error("RADICLE_REPO_IDS missing in", envPath);
-    process.exit(1);
+  const rids = await resolveExportRids(base, env);
+  const expTrim = env.RADICLE_ACTIVITY_EXPORT_REPO_IDS?.trim();
+  if (expTrim) {
+    const tokens = expTrim.split(",").map((s) => s.trim()).filter(Boolean);
+    const usedInventory =
+      tokens.length === 1 && /^(all|\*)$/i.test(tokens[0]);
+    if (!usedInventory) {
+      console.log(
+        `Exporting ${rids.length} repo(s) from RADICLE_ACTIVITY_EXPORT_REPO_IDS.`,
+      );
+    }
+  } else {
+    console.log(
+      `Exporting ${rids.length} repo(s) from RADICLE_REPO_IDS — append a new project's RID, or set RADICLE_ACTIVITY_EXPORT_REPO_IDS=all for the whole node.`,
+    );
   }
-  const rids = rawIds.split(",").map((s) => s.trim()).filter(Boolean);
   const historyDays = clampEnvInt(
     env.RADICLE_ACTIVITY_HISTORY_DAYS,
     1095,

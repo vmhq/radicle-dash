@@ -84,7 +84,9 @@ export function getActivityMaxCommitPages(): number {
 
 /** Heatmap column count from history window (+1 week slack), capped for layout. */
 export function getActivityHeatmapWeeks(historyDays: number): number {
-  const w = Math.ceil(historyDays / 7) + 1;
+  const hd =
+    Number.isFinite(historyDays) && historyDays > 0 ? historyDays : 1095;
+  const w = Math.ceil(hd / 7) + 1;
   return Math.min(Math.max(w, 8), 530);
 }
 

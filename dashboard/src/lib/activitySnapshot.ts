@@ -26,9 +26,11 @@ function isActivityEntry(x: unknown): x is ActivityEntry {
   const id =
     typeof commit.id === "string" && commit.id
       ? commit.id
-      : typeof commit.sha === "string" && commit.sha
-        ? commit.sha
-        : null;
+      : typeof commit.oid === "string" && commit.oid
+        ? commit.oid
+        : typeof commit.sha === "string" && commit.sha
+          ? commit.sha
+          : null;
   return (
     typeof o.rid === "string" &&
     typeof o.repoName === "string" &&
@@ -100,9 +102,11 @@ export async function readActivitySnapshot(): Promise<ActivityEntry[] | null> {
       const commitId =
         typeof e.commit.id === "string" && e.commit.id
           ? e.commit.id
-          : typeof rawCommit.sha === "string" && rawCommit.sha
-            ? rawCommit.sha
-            : "";
+          : typeof rawCommit.oid === "string" && rawCommit.oid
+            ? rawCommit.oid
+            : typeof rawCommit.sha === "string" && rawCommit.sha
+              ? rawCommit.sha
+              : "";
       if (!commitId) continue;
       const ts = normalizeCommitCalendarTime(e.commit);
       if (ts === null || !Number.isFinite(ts)) continue;

@@ -61,6 +61,7 @@ All variables live in `dashboard/.env.local`. See [`.env.example`](.env.example)
 | `RADICLE_PROFILE_LINKS` | `label:url, label:url` — chips in the hero (e.g. `site:https://you.dev, email:mailto:you@example.com`) |
 | `RADICLE_PROFILE_AVATAR_URL` | Path under `/public` (`/me.jpg`) or full URL. Falls back to a generative gradient + initials. |
 | `RADICLE_REPO_IDS` | Comma-separated RIDs to feature on `/profile`. If unset, the page renders an empty state. |
+| `RADICLE_ACTIVITY_EXPORT_REPO_IDS` | **Export only** (`npm run export-activity`). If set, overrides which RIDs are scanned for the snapshot; if unset, export uses `RADICLE_REPO_IDS`. Use a single value `all` or `*` to pull every repo from `GET /api/v1/repos?show=all` (new projects without editing the profile list). Do **not** set `RADICLE_REPO_IDS=all`. |
 | `RADICLE_ACTIVITY_HISTORY_DAYS` | How far back `/profile` pulls commits (default **1095** ≈ 3 years; clamped 30–3650). |
 | `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` | Max `?page=` fetches per repo at 5 commits/page (default **3000** ≈ 15k commits; clamped 1–20000). |
 | `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS` | Max `GET .../commits/<oid>` fetches **after** expanding parents from commits already loaded from pagination (default **8000**; clamped 0–50000; **0** disables). |
@@ -129,7 +130,7 @@ src/
 |---------|--------------|
 | `npm run dev` | Turbopack dev server (port from `$PORT`, default 3100) |
 | `npm run build` | Production build |
-| `npm run export-activity` | Write `data/activity-snapshot.json` from local `radicle-httpd` (see root README) |
+| `npm run export-activity` | Write `data/activity-snapshot.json` from local `radicle-httpd` (see root README). Uses `RADICLE_REPO_IDS` unless `RADICLE_ACTIVITY_EXPORT_REPO_IDS` is set; that variable may be `all` to export every repo on the node. |
 | `npm start` | Start the production build |
 | `npm run start:personal` | `SITE_MODE=personal PORT=3100 npm start` |
 | `npm run lint` | ESLint |

@@ -1,7 +1,4 @@
-import {
-  normalizeCommitCalendarTime,
-  type ActivityEntry,
-} from "@/lib/radicle";
+import { heatmapCommitUnixSeconds, type ActivityEntry } from "@/lib/radicle";
 import { formatActivityHistoryLabel } from "@/lib/env";
 
 type ActivityHeatmapProps = {
@@ -23,45 +20,83 @@ export function ActivityHeatmap({
   weeks = 53,
   historyDays = 365,
 }: ActivityHeatmapProps) {
-  const days = weeks * 7;
+  const msDay = 86400000;
+  const safeWeeks =
+    Number.isFinite(weeks) && weeks > 0 ? Math.min(Math.max(weeks, 1), 530) : 53;
+  const histCap =
+    Number.isFinite(historyDays) && historyDays > 0
+      ? Math.min(Math.max(historyDays, 30), 3650)
+      : 1095;
 
-  // Anchor the rightmost column to the UTC week containing "today" (matches
-  // typical contribution graphs; avoids duplicate pages stacking on one local day).
   const today = startOfUtcDay(new Date());
-  const endDate = new Date(today);
-  endDate.setUTCDate(endDate.getUTCDate() + (6 - endDate.getUTCDay()));
-  const startDate = new Date(endDate);
-  startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+  const weekEndSunday = new Date(today);
+  weekEndSunday.setUTCDate(
+    weekEndSunday.getUTCDate() + (6 - weekEndSunday.getUTCDay()),
+  );
+
+  let minEntryDay: Date | null = null;
+  let maxEntryDay: Date | null = null;
+  for (const e of entries) {
+    const t = heatmapCommitUnixSeconds(e.commit);
+    if (t == null || !Number.isFinite(t)) continue;
+    const d = startOfUtcDay(new Date(t * 1000));
+    if (!minEntryDay || d < minEntryDay) minEntryDay = d;
+    if (!maxEntryDay || d > maxEntryDay) maxEntryDay = d;
+  }
+
+  /** Right edge of the heatmap (UTC day): week-aligned Sunday, or latest commit if later. */
+  let rangeEnd = new Date(weekEndSunday);
+  if (maxEntryDay && maxEntryDay > rangeEnd) rangeEnd = maxEntryDay;
+
+  const envMinSpan = Math.max(safeWeeks * 7, histCap + 1);
+  const maxGridDays = 530 * 7;
+
+  let rangeStart: Date;
+  if (minEntryDay) {
+    const dataSpan =
+      Math.floor((rangeEnd.getTime() - minEntryDay.getTime()) / msDay) + 1;
+    let spanDays = Math.max(envMinSpan, dataSpan);
+    spanDays = Math.min(spanDays, maxGridDays);
+    rangeStart = new Date(rangeEnd);
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - (spanDays - 1));
+    if (minEntryDay < rangeStart) rangeStart = new Date(minEntryDay);
+    if (
+      Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / msDay) + 1 >
+      maxGridDays
+    ) {
+      rangeStart = new Date(rangeEnd);
+      rangeStart.setUTCDate(rangeStart.getUTCDate() - (maxGridDays - 1));
+    }
+  } else {
+    const spanDays = Math.min(Math.max(envMinSpan, 1), maxGridDays);
+    rangeStart = new Date(rangeEnd);
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - (spanDays - 1));
+  }
+
+  const days =
+    Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / msDay) + 1;
+  const gridWeeks = Math.max(1, Math.ceil(days / 7));
 
   // Bucket commits by UTC calendar day.
   const counts = new Map<string, number>();
   for (const e of entries) {
-    let t = normalizeCommitCalendarTime(e.commit);
-    const raw = e.commit.committer?.time;
-    if (
-      (t == null || !Number.isFinite(t)) &&
-      typeof raw === "number" &&
-      Number.isFinite(raw) &&
-      raw > 0
-    ) {
-      t = raw >= 1e12 ? Math.floor(raw / 1000) : Math.floor(raw);
-    }
+    const t = heatmapCommitUnixSeconds(e.commit);
     if (t == null || !Number.isFinite(t)) continue;
     const d = startOfUtcDay(new Date(t * 1000));
-    if (d < startDate || d > endDate) continue;
+    if (d < rangeStart || d > rangeEnd) continue;
     const key = utcDayKey(d);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   const total = Array.from(counts.values()).reduce((a, b) => a + b, 0);
 
-  // Build cells [weeks][7].
+  // Build cells [gridWeeks][7] — grid spans at least all entry days + env window.
   const grid: { date: Date; key: string; count: number }[][] = [];
-  for (let w = 0; w < weeks; w++) {
+  for (let w = 0; w < gridWeeks; w++) {
     const week: { date: Date; key: string; count: number }[] = [];
     for (let d = 0; d < 7; d++) {
-      const date = new Date(startDate.getTime());
-      date.setUTCDate(startDate.getUTCDate() + w * 7 + d);
+      const date = new Date(rangeStart.getTime());
+      date.setUTCDate(rangeStart.getUTCDate() + w * 7 + d);
       const key = utcDayKey(date);
       week.push({ date, key, count: counts.get(key) ?? 0 });
     }
@@ -71,7 +106,7 @@ export function ActivityHeatmap({
   // First column where each new month begins → x-position for label.
   const monthLabels: { x: number; label: string }[] = [];
   let lastMonth = -1;
-  for (let w = 0; w < weeks; w++) {
+  for (let w = 0; w < gridWeeks; w++) {
     const m = grid[w][0].date.getUTCMonth();
     if (m !== lastMonth) {
       monthLabels.push({
@@ -85,10 +120,10 @@ export function ActivityHeatmap({
     }
   }
 
-  const width = ROW_LABEL_WIDTH + weeks * (CELL + GAP);
+  const width = ROW_LABEL_WIDTH + gridWeeks * (CELL + GAP);
   const height = MONTH_LABEL_HEIGHT + 7 * (CELL + GAP);
 
-  const period = formatActivityHistoryLabel(historyDays);
+  const period = formatActivityHistoryLabel(histCap);
 
   return (
     <section className="flex h-[224px] flex-col rounded-2xl border border-border bg-surface p-6 card-ring">
