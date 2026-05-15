@@ -97,10 +97,19 @@ Optional workaround:
 
    ```bash
    cd dashboard
+   npm run sync-repos
+   ```
+
+   `sync-repos` calls `radicle-httpd`’s `GET /api/v1/repos?show=all`, **appends any new RIDs** to `RADICLE_REPO_IDS` in `dashboard/.env.local` (keeps your existing order), then runs **`npm run export-activity`**. Use `npm run sync-repos -- --dry-run` to preview new RIDs without writing, or `-- --no-export` to update the env line only.
+
+   To export only (no env merge), use:
+
+   ```bash
+   cd dashboard
    npm run export-activity
    ```
 
-   This reads `RADICLE_HTTP_BASE`, `RADICLE_REPO_IDS` (or optional `RADICLE_ACTIVITY_EXPORT_REPO_IDS`, including `all` for every repo on the node), and optional `RADICLE_ACTIVITY_HISTORY_DAYS` / `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` (same as live `/profile`) from **`dashboard/.env.local`**, calls your local HTTP API, and writes **`dashboard/data/activity-snapshot.json`** (gitignored).
+   Export reads `RADICLE_HTTP_BASE`, `RADICLE_REPO_IDS` (or optional `RADICLE_ACTIVITY_EXPORT_REPO_IDS`, including `all` for every repo on the node), and optional `RADICLE_ACTIVITY_HISTORY_DAYS` / `RADICLE_ACTIVITY_MAX_COMMIT_PAGES` (same as live `/profile`) from **`dashboard/.env.local`**, calls your local HTTP API, and writes **`dashboard/data/activity-snapshot.json`** (gitignored).
 
 2. Copy that file to **M3** (same path under your clone: `dashboard/data/activity-snapshot.json`), e.g. `scp` or AirDrop.
 
@@ -112,9 +121,9 @@ Optional workaround:
 
 4. **Rebuild + restart** Next on M3 so the env is picked up.
 
-Then **heatmap** and **recent activity** use the snapshot; **repository cards** still come from **`RADICLE_HTTP_BASE`** on M3 (replication / seeding as today). Re-run the export and re-copy whenever you want the public view to catch up.
+Then **heatmap** and **recent activity** use the snapshot; **repository cards** still come from **`RADICLE_HTTP_BASE`** on M3 (replication / seeding as today). Re-run **`npm run sync-repos`** or **`npm run export-activity`** on M1 and re-copy whenever you want the public view to catch up.
 
-The loader accepts the export shape (`entries` array) or a top-level array, and optional `commits` / `activity` keys. Each row needs `rid`, `repoName`, and `commit` with `committer.time` as **Unix seconds**, **epoch ms** (≥1e12, auto-scaled), or an **ISO-8601 string**, plus `commit.id` or `commit.sha`. If the heatmap still looks empty after a refresh, use an **absolute** `RADICLE_ACTIVITY_SNAPSHOT_PATH` so the server’s working directory cannot point at the wrong file.
+The loader accepts the export shape (`entries` array) or a top-level array, and optional `commits` / `activity` keys. Each row needs `rid`, `repoName`, and `commit` with `committer.time` as **Unix seconds**, **epoch ms** (≥1e12, auto-scaled), or an **ISO-8601 string**, plus `commit.id`, `commit.oid`, or `commit.sha`. If the heatmap still looks empty after a refresh, use an **absolute** `RADICLE_ACTIVITY_SNAPSHOT_PATH` so the server’s working directory cannot point at the wrong file.
 
 ## Before you push source to Radicle
 

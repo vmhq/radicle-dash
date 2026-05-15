@@ -130,6 +130,7 @@ src/
 |---------|--------------|
 | `npm run dev` | Turbopack dev server (port from `$PORT`, default 3100) |
 | `npm run build` | Production build |
+| `npm run sync-repos` | Fetch `GET /api/v1/repos?show=all`, append missing RIDs to `RADICLE_REPO_IDS` in `.env.local`, then run `export-activity`. Flags: `--dry-run`, `--no-export`. |
 | `npm run export-activity` | Write `data/activity-snapshot.json` from local `radicle-httpd` (see root README). Uses `RADICLE_REPO_IDS` unless `RADICLE_ACTIVITY_EXPORT_REPO_IDS` is set; that variable may be `all` to export every repo on the node. |
 | `npm start` | Start the production build |
 | `npm run start:personal` | `SITE_MODE=personal PORT=3100 npm start` |
