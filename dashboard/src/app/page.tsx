@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import ProfilePage from "./profile/page";
 import {
   ArrowRight,
   Code2,
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export default function Home() {
   if (getSiteMode() === "personal") {
-    redirect("/profile");
+    return <ProfilePage />;
   }
   return (
     <div className="relative min-h-screen">

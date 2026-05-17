@@ -73,13 +73,13 @@ export function getActivityHistoryDays(): number {
 
 /**
  * Max `page=` requests per repo for `/commits` (5 rows per page). Override
- * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 20
+ * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 5
  * so the profile can render quickly on serverless/edge deployments.
  */
 export function getActivityMaxCommitPages(): number {
   const raw = process.env.RADICLE_ACTIVITY_MAX_COMMIT_PAGES?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 20;
-  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 20;
+  const parsed = raw ? Number.parseInt(raw, 10) : 5;
+  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
   return Math.min(Math.max(n, 1), 20000);
 }
 
@@ -118,13 +118,14 @@ export function formatActivityHistoryLabel(days: number): string {
  * `meta.head` (fills gaps left by paginated `/commits`). Set
  * `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS` to `0` to disable. Clamped 0–50000.
  * Counts only HTTP fetches for commits not already in the paginated/tip set.
- * Default 200 to avoid long cold starts on Cloudflare Workers.
+ * Default 0 to avoid long cold starts on Cloudflare Workers; set a higher env
+ * value if you prefer fuller history over first-load speed.
  */
 export function getActivityAncestryMaxCommits(): number {
   const raw = process.env.RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS?.trim();
-  if (raw === undefined || raw === "") return 200;
+  if (raw === undefined || raw === "") return 0;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return 200;
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.min(parsed, 50000);
 }
 
@@ -141,7 +142,7 @@ export function getRadicleFetchRevalidateSeconds(): number {
 /** Bound each Radicle HTTP request so slow upstreams don't stall the page. */
 export function getRadicleFetchTimeoutMs(): number {
   const raw = process.env.RADICLE_FETCH_TIMEOUT_MS?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 3500;
-  if (!Number.isFinite(parsed) || parsed <= 0) return 3500;
+  const parsed = raw ? Number.parseInt(raw, 10) : 2500;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 2500;
   return Math.min(Math.max(parsed, 500), 30000);
 }
