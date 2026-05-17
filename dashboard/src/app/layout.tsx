@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     process.env.SITE_URL ?? "http://localhost:3100",
   ),
   title: {
-    default: "radprofile.xyz · A beautiful public face for your Radicle node",
-    template: "%s · radprofile.xyz",
+    default: "Radicle VMHQ",
+    template: "%s · Radicle VMHQ",
   },
   description:
     "Open-source, self-hosted Next.js dashboard for radicle-httpd. Curated profile, full-node browser, search, and copy-paste clone commands — all read live from your local node.",
@@ -34,14 +34,14 @@ export const metadata: Metadata = {
     "sovereign code",
   ],
   openGraph: {
-    title: "radprofile.xyz",
+    title: "Radicle VMHQ",
     description:
       "Open-source Next.js dashboard for your Radicle node. Run it next to your seed and get a polished public profile.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "radprofile.xyz",
+    title: "Radicle VMHQ",
     description:
       "Open-source Next.js dashboard for your Radicle node. Run it next to your seed and get a polished public profile.",
   },

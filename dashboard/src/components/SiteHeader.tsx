@@ -26,7 +26,7 @@ export function SiteHeader() {
             <CircleDot size={15} strokeWidth={2.4} />
           </span>
           <span className="text-foreground/90 group-hover:text-foreground">
-            radprofile.xyz
+            Radicle VMHQ
           </span>
         </Link>
         <nav className="flex items-center gap-1 text-sm">
@@ -43,12 +43,6 @@ export function SiteHeader() {
             className="rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-foreground"
           >
             Profile
-          </Link>
-          <Link
-            href="/node"
-            className="rounded-md px-3 py-1.5 text-muted hover:bg-surface hover:text-foreground"
-          >
-            Node
           </Link>
         </nav>
       </div>

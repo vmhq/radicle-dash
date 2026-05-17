@@ -26,7 +26,7 @@ export function SiteFooter() {
             >
               <CircleDot size={13} strokeWidth={2.4} />
             </span>
-            radprofile.xyz
+            Radicle VMHQ
           </Link>
           <p className="mt-2 max-w-md text-xs text-muted">
             Open source · Apache-2.0 · Built with Next.js. No accounts, no analytics,
@@ -38,11 +38,6 @@ export function SiteFooter() {
           <li>
             <Link href="/profile" className="hover:text-foreground">
               Live demo
-            </Link>
-          </li>
-          <li>
-            <Link href="/node" className="hover:text-foreground">
-              Whole node
             </Link>
           </li>
           <li>

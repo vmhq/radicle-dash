@@ -51,7 +51,7 @@ export default function OpengraphImage() {
           >
             rp
           </div>
-          radprofile.xyz
+          rad.vmhq.cl
         </div>
         <div
           style={{
