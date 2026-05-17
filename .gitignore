@@ -10,6 +10,7 @@ PUBLISHED_REPOS.md
 !.env.example
 !dashboard/.env.example
 dashboard/public/avatar.*
+!dashboard/public/avatar.png
 dashboard/public/me.*
 dashboard/public/dippie.*
 
