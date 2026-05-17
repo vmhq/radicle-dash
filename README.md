@@ -1,4 +1,9 @@
-# radprofile.xyz
+# radicle-dash (Radicle VMHQ)
+
+> **Fork of [radprofile.xyz](https://radprofile.xyz)** — customized for [rad.vmhq.cl](https://rad.vmhq.cl).
+> Original project and full credit to [@cstampar](https://radicle.network/nodes/iris.radicle.xyz/rad:z2v11Gpk44QqZ7zy8W9fva8wXXDBi). ⭐
+
+---
 
 A self-hosted, open-source **Radicle profile dashboard**: a public-facing **`/profile`** page (repos, activity, bio, links) and a full-node **`/node`** explorer, all driven by your own **`radicle-httpd`** — no hosted git forge, no analytics bundle, no API keys in the app.
 
