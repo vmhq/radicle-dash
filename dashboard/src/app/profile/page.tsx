@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   AlertTriangle,
   FolderGit2,
@@ -40,9 +41,12 @@ import { readActivitySnapshot } from "@/lib/activitySnapshot";
 import { fetchProfileActivity, fetchProfileRepos } from "@/lib/radicle";
 import { shortenId } from "@/lib/visual";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function ProfilePage() {
+  // Keep the profile rendered at request time so deployment runtime vars from
+  // wrangler.jsonc are used, while Radicle API calls remain revalidated/cached.
+  await headers();
   const siteMode = getSiteMode();
   const rids = getProfileRepoIds();
   const base = getRadicleHttpBase();

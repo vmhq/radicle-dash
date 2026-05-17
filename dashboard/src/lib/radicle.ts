@@ -1,4 +1,30 @@
-import { getExplorerNode, getExplorerOrigin, getRadicleHttpBase } from "./env";
+import {
+  getExplorerNode,
+  getExplorerOrigin,
+  getRadicleFetchRevalidateSeconds,
+  getRadicleFetchTimeoutMs,
+  getRadicleHttpBase,
+} from "./env";
+
+type RadicleFetchInit = RequestInit & {
+  next?: { revalidate?: number };
+};
+
+function radicleFetch(url: string): Promise<Response> {
+  const revalidate = getRadicleFetchRevalidateSeconds();
+  const init: RadicleFetchInit = {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(getRadicleFetchTimeoutMs()),
+  };
+
+  if (revalidate === 0) {
+    init.cache = "no-store";
+  } else {
+    init.next = { revalidate };
+  }
+
+  return fetch(url, init);
+}
 
 export type RadicleDelegate = { id: string; alias: string };
 
@@ -38,10 +64,7 @@ export async function fetchRepo(
   const base = baseUrl ?? getRadicleHttpBase();
   const url = `${base}/api/v1/repos/${encodeURIComponent(rid)}`;
   try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const res = await radicleFetch(url);
     if (!res.ok) {
       return {
         ok: false,
@@ -345,9 +368,8 @@ export async function fetchRepoCommits(
   for (let page = 1; page <= maxPages; page++) {
     let batch: Commit[] = [];
     try {
-      const res = await fetch(
+      const res = await radicleFetch(
         `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits?page=${page}&perPage=5`,
-        { cache: "no-store", headers: { Accept: "application/json" } },
       );
       if (!res.ok) break;
       batch = (await res.json()) as Commit[];
@@ -380,9 +402,8 @@ export async function fetchRepoCommitById(
 ): Promise<Commit | null> {
   const base = baseUrl ?? getRadicleHttpBase();
   try {
-    const res = await fetch(
+    const res = await radicleFetch(
       `${base}/api/v1/repos/${encodeURIComponent(rid)}/commits/${encodeURIComponent(commitId)}`,
-      { cache: "no-store", headers: { Accept: "application/json" } },
     );
     if (!res.ok) return null;
     const data = (await res.json()) as unknown;
@@ -561,10 +582,7 @@ export async function fetchNodeInfo(
 ): Promise<NodeInfo | null> {
   const base = baseUrl ?? getRadicleHttpBase();
   try {
-    const res = await fetch(`${base}/api/v1/node`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const res = await radicleFetch(`${base}/api/v1/node`);
     if (!res.ok) return null;
     return (await res.json()) as NodeInfo;
   } catch {
@@ -585,10 +603,7 @@ export async function fetchNodeRepos(
 ): Promise<{ repos: RadicleRepoPayload[]; error: string | null }> {
   const base = baseUrl ?? getRadicleHttpBase();
   try {
-    const res = await fetch(`${base}/api/v1/repos?show=${show}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const res = await radicleFetch(`${base}/api/v1/repos?show=${show}`);
     if (!res.ok) {
       return { repos: [], error: `${res.status} ${res.statusText}` };
     }

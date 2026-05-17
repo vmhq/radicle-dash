@@ -62,23 +62,24 @@ export function getSiteMode(): SiteMode {
 /**
  * How far back profile activity (heatmap + feed) pulls commits from
  * `radicle-httpd`, in calendar days. Override with `RADICLE_ACTIVITY_HISTORY_DAYS`.
- * Clamped to 30–3650 (~10y). Default 1095 (~3y).
+ * Clamped to 30–3650 (~10y). Default 365 (1y) to keep public page renders fast.
  */
 export function getActivityHistoryDays(): number {
   const raw = process.env.RADICLE_ACTIVITY_HISTORY_DAYS?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 1095;
-  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 1095;
+  const parsed = raw ? Number.parseInt(raw, 10) : 365;
+  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 365;
   return Math.min(Math.max(n, 30), 3650);
 }
 
 /**
  * Max `page=` requests per repo for `/commits` (5 rows per page). Override
- * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 3000.
+ * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 20
+ * so the profile can render quickly on serverless/edge deployments.
  */
 export function getActivityMaxCommitPages(): number {
   const raw = process.env.RADICLE_ACTIVITY_MAX_COMMIT_PAGES?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 3000;
-  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 3000;
+  const parsed = raw ? Number.parseInt(raw, 10) : 20;
+  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 20;
   return Math.min(Math.max(n, 1), 20000);
 }
 
@@ -117,12 +118,30 @@ export function formatActivityHistoryLabel(days: number): string {
  * `meta.head` (fills gaps left by paginated `/commits`). Set
  * `RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS` to `0` to disable. Clamped 0–50000.
  * Counts only HTTP fetches for commits not already in the paginated/tip set.
- * Default 8000.
+ * Default 200 to avoid long cold starts on Cloudflare Workers.
  */
 export function getActivityAncestryMaxCommits(): number {
   const raw = process.env.RADICLE_ACTIVITY_ANCESTRY_MAX_COMMITS?.trim();
-  if (raw === undefined || raw === "") return 8000;
+  if (raw === undefined || raw === "") return 200;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return 8000;
+  if (!Number.isFinite(parsed) || parsed < 0) return 200;
   return Math.min(parsed, 50000);
+}
+
+/** Cache live Radicle API responses for a short period. Override with
+ * `RADICLE_FETCH_REVALIDATE_SECONDS`; use `0` to disable Next fetch caching.
+ */
+export function getRadicleFetchRevalidateSeconds(): number {
+  const raw = process.env.RADICLE_FETCH_REVALIDATE_SECONDS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 300;
+  if (!Number.isFinite(parsed) || parsed < 0) return 300;
+  return Math.min(parsed, 86400);
+}
+
+/** Bound each Radicle HTTP request so slow upstreams don't stall the page. */
+export function getRadicleFetchTimeoutMs(): number {
+  const raw = process.env.RADICLE_FETCH_TIMEOUT_MS?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : 3500;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 3500;
+  return Math.min(Math.max(parsed, 500), 30000);
 }

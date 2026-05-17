@@ -27,7 +27,7 @@ import {
 import { getProfileRepoIds } from "@/lib/profileRepos";
 import { shortenId } from "@/lib/visual";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 /**
  * `GET /api/v1/repos?show=all` sometimes omits a RID that still answers
