@@ -362,6 +362,8 @@ export async function fetchRepoCommits(
   baseUrl?: string,
   maxPages = 3000,
 ): Promise<Commit[]> {
+  if (maxPages <= 0) return [];
+
   const base = baseUrl ?? getRadicleHttpBase();
   const all: Commit[] = [];
   const seen = new Set<string>();
@@ -523,6 +525,8 @@ export async function fetchProfileActivity(
   maxCommitPages = 3000,
   maxAncestryCommits = 8000,
 ): Promise<ActivityEntry[]> {
+  if (maxCommitPages <= 0 && maxAncestryCommits <= 0) return [];
+
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
   const results = await Promise.all(
     repos.map(async (repo) => {

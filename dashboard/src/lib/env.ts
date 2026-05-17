@@ -73,14 +73,15 @@ export function getActivityHistoryDays(): number {
 
 /**
  * Max `page=` requests per repo for `/commits` (5 rows per page). Override
- * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 1–20000 (~100k commits). Default 5
- * so the profile can render quickly on serverless/edge deployments.
+ * `RADICLE_ACTIVITY_MAX_COMMIT_PAGES`. Clamped 0–20000 (~100k commits). Default 0
+ * disables live commit history on public serverless deployments; use an activity
+ * snapshot or set this env var higher if you prefer fuller history over speed.
  */
 export function getActivityMaxCommitPages(): number {
   const raw = process.env.RADICLE_ACTIVITY_MAX_COMMIT_PAGES?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 5;
-  const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
-  return Math.min(Math.max(n, 1), 20000);
+  const parsed = raw ? Number.parseInt(raw, 10) : 0;
+  const n = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return Math.min(Math.max(n, 0), 20000);
 }
 
 /**
