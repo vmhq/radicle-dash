@@ -2,6 +2,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "radicle-vmhq",
+	"account_id": "81a1327ecc4cce8e4c8d6122d923363a",
 	"compatibility_date": "2026-05-17",
 	"compatibility_flags": [
 		"nodejs_compat",
