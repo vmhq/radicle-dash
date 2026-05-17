@@ -1,0 +1,16 @@
+name = "radicle-vmhq"
+main = ".open-next/worker.js"
+compatibility_date = "2026-05-17"
+compatibility_flags = ["nodejs_compat"]
+
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+[vars]
+RADICLE_HTTP_BASE = "https://iris.radicle.xyz"
+NEXT_PUBLIC_RADICLE_HTTP_LABEL = "https://iris.radicle.xyz"
+SITE_MODE = "personal"
+RADICLE_REPO_IDS = "rad:z4LqQbjaNbtk194BuZd8sjhbEyMt3,rad:z3Xu9XnbSeymDHmPXuvvFVENTQaPC,rad:z2dhjQP9jQk5WxXGnLmfMZmPS6XU6,rad:zAW6yz62TaQrWzt992k2QVnxwKrG"
+RADICLE_PROFILE_ALIAS = "vmhq"
+RADICLE_DELEGATE_DID = "did:key:z6MkjMKHqt8vDSkUHP8AwibZ3i1jd6QKuV5dkoVi2KA1qa7F"
+NEXT_PUBLIC_RADICLE_EXPLORER_NODE = "iris.radicle.xyz"
+RADICLE_PROFILE_AVATAR_URL = "/avatar.png"
